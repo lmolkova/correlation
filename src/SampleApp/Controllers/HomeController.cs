@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Diagnostics.Context;
 using Microsoft.Extensions.Logging;
 
 namespace SampleApp.Controllers

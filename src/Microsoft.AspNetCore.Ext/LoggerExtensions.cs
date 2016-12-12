@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.Diagnostics.Context;
+using System.Diagnostics.Context;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.AspNetCore.Ext

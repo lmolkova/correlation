@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
-namespace Microsoft.Diagnostics.Context
+namespace System.Diagnostics.Context
 {
     public class SpanContext
     {

@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Diagnostics.Context;
 using System.Linq;
 using System.Net.Http;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Diagnostics.Context;
 
 namespace Microsoft.AspNetCore.Ext.Internal
 {

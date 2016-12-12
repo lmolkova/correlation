@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Microsoft.Diagnostics.Context", "src\Microsoft.Diagnostics.Context\Microsoft.Diagnostics.Context.xproj", "{5953A709-C584-4744-834F-079C38A83E8C}"
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "System.Diagnostics.Context", "src\Microsoft.Diagnostics.Context\System.Diagnostics.Context.xproj", "{5953A709-C584-4744-834F-079C38A83E8C}"
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "SampleApp", "src\SampleApp\SampleApp.xproj", "{CF77EACA-B4D4-4F23-897A-B3E7A38D564E}"
 EndProject

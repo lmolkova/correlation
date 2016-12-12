@@ -6,9 +6,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.Context;
 using System.Net.Http;
 using System.Reflection;
-using Microsoft.Diagnostics.Context;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.AspNetCore.Ext.Internal

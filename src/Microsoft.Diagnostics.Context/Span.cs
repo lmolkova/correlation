@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Text;
 
-namespace Microsoft.Diagnostics.Context
+namespace System.Diagnostics.Context
 {
     public class Span
     {
@@ -88,7 +88,7 @@ namespace Microsoft.Diagnostics.Context
         {
             var sb = new StringBuilder();
             sb.Append($"{nameof(context.SpanId)}={context.SpanId},");
-
+            sb.Append($"{nameof(context.ParentSpanId)}={context.ParentSpanId},");
             if (context.CorrelationId != null)
                 sb.Append($"{nameof(context.CorrelationId)}={context.CorrelationId},");
             sb.Append(dictionaryToString(context.Baggage));

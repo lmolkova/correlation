@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 
-namespace Microsoft.Diagnostics.Context
+namespace System.Diagnostics.Context
 {
     public class SpanState
     {

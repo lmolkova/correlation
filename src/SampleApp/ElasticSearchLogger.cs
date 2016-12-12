@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Context;
 using Microsoft.Extensions.Logging;
-using Microsoft.Diagnostics.Context;
 using Nest;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
