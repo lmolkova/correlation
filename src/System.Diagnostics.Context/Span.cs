@@ -6,13 +6,15 @@ namespace System.Diagnostics.Context
     public class Span
     {
         public readonly string OperationName;
-        public readonly long StartTimestamp;
+        public readonly DateTime StartTimestamp;
+        public readonly long PreciseStartTimestamp;
         public readonly IDictionary<string, string> Tags = new Dictionary<string, string>();
 
         public Span Parent { get; internal set; }
 
         //SpanContext is not duplicated in child spans
         private readonly SpanContext spanContext;
+
 
         public Span(SpanContext context, string operationName, long timestamp, Span parent)
         {
@@ -21,7 +23,9 @@ namespace System.Diagnostics.Context
                 spanContext.ParentSpanId = parent.spanContext.SpanId;
 
             OperationName = operationName;
-            StartTimestamp = timestamp;
+            StartTimestamp = DateTime.UtcNow;
+
+            PreciseStartTimestamp = timestamp;
             Parent = parent;
         }
 
@@ -81,14 +85,14 @@ namespace System.Diagnostics.Context
 
         public override string ToString()
         {
-            return $"operation: {OperationName}, context: {{{spanContextToString(spanContext)}}}, tags: {{{dictionaryToString(Tags)}}}, started {StartTimestamp}";
+            return $"operation: {OperationName}, context: {{{spanContextToString(spanContext)}}}, tags: {{{dictionaryToString(Tags)}}}, started {StartTimestamp:o}";
         }
+
 
         private string spanContextToString(SpanContext context)
         {
             var sb = new StringBuilder();
             sb.Append($"{nameof(context.SpanId)}={context.SpanId},");
-            sb.Append($"{nameof(context.ParentSpanId)}={context.ParentSpanId},");
             if (context.CorrelationId != null)
                 sb.Append($"{nameof(context.CorrelationId)}={context.CorrelationId},");
             sb.Append(dictionaryToString(context.Baggage));

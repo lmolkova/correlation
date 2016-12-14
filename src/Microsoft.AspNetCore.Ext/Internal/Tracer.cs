@@ -16,8 +16,6 @@ namespace Microsoft.AspNetCore.Ext.Internal
                 request.Headers.Add(CorrelationIdHeaderName, spanContext.CorrelationId);
 
             request.Headers.Add(SpanIdHeaderName, spanContext.SpanId);
-            if (spanContext.ParentSpanId != null)
-                request.Headers.Add(ParentSpanIdHeaderName, spanContext.ParentSpanId);
             foreach (var kv in spanContext.Baggage)
             {
                 request.Headers.Add(BaggagePrefix + kv.Key, kv.Value);
@@ -35,14 +33,10 @@ namespace Microsoft.AspNetCore.Ext.Internal
             if (request.Headers.ContainsKey(SpanIdHeaderName))
                 requestId = request.Headers[SpanIdHeaderName].First();
 
-            string parentRequestId = null;
-            if (request.Headers.ContainsKey(ParentSpanIdHeaderName))
-                parentRequestId = request.Headers[ParentSpanIdHeaderName].First();
-
-            var context = new SpanContext(requestId ?? request.HttpContext.TraceIdentifier)
+            var context = new SpanContext(request.HttpContext.TraceIdentifier)
             {
                 CorrelationId = correlationId ?? Guid.NewGuid().ToString(),
-                ParentSpanId = parentRequestId
+                ParentSpanId = requestId
             };
 
             foreach (var header in request.Headers.Where(header => header.Key.StartsWith(BaggagePrefix)))
@@ -55,15 +49,14 @@ namespace Microsoft.AspNetCore.Ext.Internal
         /// <summary>
         /// CorrelationId header name
         /// </summary>
-        public static string CorrelationIdHeaderName = "x-ms-request-root-id";
+        public static string CorrelationIdHeaderName = "x-ms-correlation-id";
 
         /// <summary>
         /// RequestId header name
         /// </summary>
         public static string SpanIdHeaderName = "x-ms-request-id";
 
-        public static string ParentSpanIdHeaderName = "x-ms-request-parent-id";
 
-        public static string BaggagePrefix = "X-Baggage-";
+        public static string BaggagePrefix = "x-ms-baggage-";
     }
 }

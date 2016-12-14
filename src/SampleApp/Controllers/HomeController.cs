@@ -32,7 +32,5 @@ namespace SampleApp.Controllers
 
             return View();
         }
-
-
     }
 }

@@ -3,7 +3,7 @@
 
   "dependencies": {
     "NETStandard.Library": "1.6.0",
-    "Microsoft.Diagnostics.Context": { "target": "project" },
+    "System.Diagnostics.Context": { "target": "project" },
     "Microsoft.AspNetCore.Http": "1.0.0",
     "Microsoft.Extensions.Logging": "1.0.0",
     "System.Diagnostics.DiagnosticSource": "4.0.0",

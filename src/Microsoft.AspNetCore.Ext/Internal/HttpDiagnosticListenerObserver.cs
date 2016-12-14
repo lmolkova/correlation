@@ -43,7 +43,7 @@ namespace Microsoft.AspNetCore.Ext.Internal
                 {
                     if (logger.IsEnabled(LogLevel.Information) && filter.Validate(request.RequestUri))
                     {
-                        var span = new Span(new SpanContext(requestId.ToString()), "Outgoing request", (long) timestamp, SpanState.Current)
+                        var span = new Span(new SpanContext(requestId.ToString()), "Outgoing request", (long)timestamp, SpanState.Current)
                             .SetTags(request);
                         tracer.Inject(span.GetContext(), request);
 
@@ -87,7 +87,7 @@ namespace Microsoft.AspNetCore.Ext.Internal
         public static Span SetTags(this Span span, HttpResponseMessage response)
         {
             span.Tags["StatusCode"] = response.StatusCode.ToString();
-            span.Tags["Duration"] = $"{new TimeSpan(Stopwatch.GetTimestamp() - span.StartTimestamp).TotalMilliseconds}ms";
+            span.Tags["Duration"] = $"{TimeSpan.FromTicks(Stopwatch.GetTimestamp() -  span.PreciseStartTimestamp).TotalMilliseconds}ms";
             return span;
         }
     }
