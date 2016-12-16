@@ -9,30 +9,30 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Ext.Internal;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Correlation;
+using Microsoft.Extensions.Correlation.Internal;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Ext
 {
+    //TODO: this should be refactored once AspNetDiagListener is eliminated
     public static class ApplicationBuilderExtensions
     {
         /// <summary>
         /// Enables Correlation instrumentation
         /// </summary>
         /// <param name="app"><see cref="IApplicationBuilder"/> application builder</param>
-        /// <param name="configuration">Correlation confgiuration</param>
         /// <returns><see cref="IApplicationBuilder"/> application builder</returns>
-        public static IApplicationBuilder UseCorrelationInstrumentation(this IApplicationBuilder app, IConfiguration configuration)
+        public static IApplicationBuilder UseCorrelationInstrumentation(this IApplicationBuilder app)
         {
-            var loggerFactory = app.ApplicationServices.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
-            var endpointFiler = app.ApplicationServices.GetService(typeof(IEndpointFilter)) as IEndpointFilter;
+            var loggerFactory = app.ApplicationServices.GetRequiredService(typeof(ILoggerFactory)) as ILoggerFactory;
 
-            bool instrumentOutgoingRequests;
-            bool.TryParse(configuration["InstrumentOutgoingRequests"], out instrumentOutgoingRequests);
+            var options = app.ApplicationServices.GetService(typeof(IOptions<CorrelationConfigurationOptions>)) as IOptions<CorrelationConfigurationOptions>;
+            var instrumentaion = Initialize(options?.Value ?? new CorrelationConfigurationOptions(), loggerFactory);
 
-            var instrumentaion = Initialize(endpointFiler ?? new EndpointFilter(), instrumentOutgoingRequests, loggerFactory);
-
-            var appLifetime = app.ApplicationServices.GetService(typeof(IApplicationLifetime)) as IApplicationLifetime;
+            var appLifetime = app.ApplicationServices.GetRequiredService(typeof(IApplicationLifetime)) as IApplicationLifetime;
 
             appLifetime?.ApplicationStopped.Register(() => instrumentaion?.Dispose());
             return app;
@@ -41,7 +41,7 @@ namespace Microsoft.AspNetCore.Ext
         private const string HttpListenerName = "HttpHandlerDiagnosticListener";
         private const string AspNetListenerName = "Microsoft.AspNetCore";
 
-        public static IDisposable Initialize(IEndpointFilter endpointFilter, bool instrumentOutgoingRequests, ILoggerFactory loggerFactory)
+        public static IDisposable Initialize(CorrelationConfigurationOptions options, ILoggerFactory loggerFactory)
         {
             var observers = new Dictionary<string, IObserver<KeyValuePair<string, object>>>
             {
@@ -53,12 +53,10 @@ namespace Microsoft.AspNetCore.Ext
                 }
             };
 
-            if (instrumentOutgoingRequests)
-            {
-                observers.Add(HttpListenerName,
-                    new HttpDiagnosticListenerObserver(loggerFactory.CreateLogger<HttpDiagnosticListenerObserver>(),
-                        endpointFilter));
-            }
+            var observer = CorrelationHttpInstrumentation.CreateObserver(options, loggerFactory);
+            if (observer != null)
+                observers.Add(HttpListenerName, observer);
+
             return DiagnosticListener.AllListeners.Subscribe(new DiagnosticListenersObserver(observers));
         }
     }

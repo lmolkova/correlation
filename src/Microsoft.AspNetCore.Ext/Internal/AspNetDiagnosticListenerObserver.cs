@@ -6,9 +6,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Context;
+using System.Linq;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Correlation;
 
 namespace Microsoft.AspNetCore.Ext.Internal
 {
@@ -16,7 +18,7 @@ namespace Microsoft.AspNetCore.Ext.Internal
     internal class AspNetDiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>
     {
         private readonly ILogger<AspNetDiagnosticListenerObserver> logger;
-        private readonly Tracer tracer = new Tracer();
+
         public AspNetDiagnosticListenerObserver(ILogger<AspNetDiagnosticListenerObserver> logger)
         {
             this.logger = logger;
@@ -34,7 +36,7 @@ namespace Microsoft.AspNetCore.Ext.Internal
                 var timestamp = timestampInfo?.GetValue(value.Value);
                 if (httpContext != null && timestamp != null)
                 {
-                    var ctx = tracer.Extract(httpContext.Request);
+                    var ctx = extractContext(httpContext.Request);
                     //we BeginScope regardless of the logging level, since we don't know what will happen with request and we need to have scope e.g. for errors
                     //so this introduces performance impact, we might be able to solve with sampling
                     //And sampling is not provided by ASP.NET Core, it creates scopes for all requests currently
@@ -71,6 +73,29 @@ namespace Microsoft.AspNetCore.Ext.Internal
         public void OnCompleted(){}
 
         public void OnError(Exception error){}
+
+        private SpanContext extractContext(HttpRequest request)
+        {
+            string correlationId = null;
+            if (request.Headers.ContainsKey(CorrelationHttpHeaders.CorrelationIdHeaderName))
+                correlationId = request.Headers[CorrelationHttpHeaders.CorrelationIdHeaderName].First();
+
+            string requestId = null;
+            if (request.Headers.ContainsKey(CorrelationHttpHeaders.SpanIdHeaderName))
+                requestId = request.Headers[CorrelationHttpHeaders.SpanIdHeaderName].First();
+
+            var context = new SpanContext(request.HttpContext.TraceIdentifier)
+            {
+                CorrelationId = correlationId ?? Guid.NewGuid().ToString(),
+                ParentSpanId = requestId
+            };
+
+            foreach (var header in request.Headers.Where(header => header.Key.StartsWith(CorrelationHttpHeaders.BaggagePrefix)))
+            {
+                context.Baggage.Add(header.Key.Remove(0, CorrelationHttpHeaders.BaggagePrefix.Length), header.Value);
+            }
+            return context;
+        }
     }
 
     internal static class SpanExtensions

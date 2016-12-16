@@ -8,17 +8,17 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Context;
 using System.Net.Http;
-using System.Reflection;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
+using System.Threading.Tasks;
 
-namespace Microsoft.AspNetCore.Ext.Internal
+namespace Microsoft.Extensions.Correlation.Internal
 {
     internal class HttpDiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>
     {
-        private readonly IEndpointFilter filter;
-        private readonly Tracer tracer = new Tracer();
+        private readonly EndpointFilter filter;
         private readonly ILogger<HttpDiagnosticListenerObserver> logger;
-        public HttpDiagnosticListenerObserver(ILogger<HttpDiagnosticListenerObserver> logger, IEndpointFilter filter)
+        public HttpDiagnosticListenerObserver(ILogger<HttpDiagnosticListenerObserver> logger, EndpointFilter filter)
         {
             this.logger = logger;
             this.filter = filter;
@@ -31,13 +31,10 @@ namespace Microsoft.AspNetCore.Ext.Internal
 
             if (value.Key == "System.Net.Http.Request")
             {
-                var requestInfo = value.Value.GetType().GetProperty("Request");
-                var timestampInfo = value.Value.GetType().GetProperty("Timestamp");
-                var requestIdInfo = value.Value.GetType().GetProperty("LoggingRequestId");
+                var request = (HttpRequestMessage) value.Value.GetProperty("Request");
+                var timestamp = value.Value.GetProperty("Timestamp");//long
+                var requestId = value.Value.GetProperty("LoggingRequestId");//Guid
 
-                var request = (HttpRequestMessage) requestInfo?.GetValue(value.Value);
-                var timestamp = timestampInfo?.GetValue(value.Value);//long
-                var requestId = requestIdInfo?.GetValue(value.Value);//Guid
 
                 if (request != null && timestamp != null && requestId != null)
                 {
@@ -45,26 +42,32 @@ namespace Microsoft.AspNetCore.Ext.Internal
                     {
                         var span = new Span(new SpanContext(requestId.ToString()), "Outgoing request", (long)timestamp, SpanState.Current)
                             .SetTags(request);
-                        tracer.Inject(span.GetContext(), request);
-
-                        request.Properties["scope"] = logger.StartSpan(span);
-                        logger.LogInformation("Start");
+                        injectContext(span.GetContext(), request);
+                        request.Properties["span"] = span;
+                        Task.Run(() =>
+                        {
+                            using (logger.StartSpan(span))
+                            {
+                                logger.LogInformation("Start");
+                            }
+                        });
                     }
                 }
             }
             else if (value.Key == "System.Net.Http.Response")
             {
-                var responseInfo = value.Value.GetType().GetProperty("Response");
-                var response = (HttpResponseMessage) responseInfo?.GetValue(value.Value, null);
+                var response = (HttpResponseMessage) value.Value.GetProperty("Response");
                 if (response != null)
                 {
                     if (logger.IsEnabled(LogLevel.Information) && filter.Validate(response.RequestMessage.RequestUri))
                     {
-                        SpanState.Current.SetTags(response);
-                        logger.LogInformation("Stop");
-
-                        var scope = response.RequestMessage.Properties["scope"] as IDisposable;
-                        scope?.Dispose();
+                        var span = response.RequestMessage.Properties["span"] as Span;
+                        span.SetTags(response);
+                        Task.Run(() =>
+                        {
+                            using (logger.StartSpan(span))
+                                logger.LogInformation("Stop");
+                        });
                     }
                 }
             }
@@ -73,6 +76,28 @@ namespace Microsoft.AspNetCore.Ext.Internal
         public void OnCompleted(){}
 
         public void OnError(Exception error){}
+
+        private void injectContext(SpanContext spanContext, HttpRequestMessage request)
+        {
+            //There could be the case when there is no correlation Id
+            //e.g. request is executed in app startup or in background, outside of any incoming request scope 
+            if (spanContext.CorrelationId != null)
+                request.Headers.Add(CorrelationHttpHeaders.CorrelationIdHeaderName, spanContext.CorrelationId);
+
+            request.Headers.Add(CorrelationHttpHeaders.SpanIdHeaderName, spanContext.SpanId);
+            foreach (var kv in spanContext.Baggage)
+            {
+                request.Headers.Add(CorrelationHttpHeaders.BaggagePrefix + kv.Key, kv.Value);
+            }
+        }
+    }
+
+    internal static class PropertyExtensions
+    {
+        public static object GetProperty(this object _this, string propertyName)
+        {
+            return _this.GetType().GetTypeInfo().GetDeclaredProperty(propertyName)?.GetValue(_this);
+        }
     }
 
     internal static class SpanExtenstions

@@ -8,12 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace Microsoft.AspNetCore.Ext
+namespace Microsoft.Extensions.Correlation.Internal
 {
-    /// <summary>
-    /// Implements <see cref="IEndpointFilter"/> allowing to disable/enable outgoing request instrumentation for list of HTTP endpoints
-    /// </summary>
-    public class EndpointFilter : IEndpointFilter
+    internal class EndpointFilter
     {
         private readonly HashSet<string> endpoints = new HashSet<string>();
         private readonly bool allow;
@@ -24,8 +21,6 @@ namespace Microsoft.AspNetCore.Ext
         public EndpointFilter()
         {
             allow = false;
-            endpoints.Add(@"core\.windows\.net");
-            endpoints.Add(@"dc\.services\.visualstudio\.com");
         }
 
         /// <summary>

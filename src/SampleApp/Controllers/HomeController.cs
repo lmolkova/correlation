@@ -21,7 +21,7 @@ namespace SampleApp.Controllers
         public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
             logger.LogInformation("index");
-            Task[] tasks = new Task[1];
+            Task[] tasks = new Task[2];
             for (int i = 0; i < tasks.Length; i++)
             {
                 int i1 = i;

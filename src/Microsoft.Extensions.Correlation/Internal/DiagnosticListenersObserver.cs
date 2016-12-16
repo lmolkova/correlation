@@ -7,9 +7,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace Microsoft.AspNetCore.Ext.Internal
+namespace Microsoft.Extensions.Correlation.Internal
 {
-    internal class DiagnosticListenersObserver : IObserver<DiagnosticListener>
+    public class DiagnosticListenersObserver : IObserver<DiagnosticListener>
     {
         private readonly IDictionary<string, IObserver<KeyValuePair<string, object>>> observers;
 

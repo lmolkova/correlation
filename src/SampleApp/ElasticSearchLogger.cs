@@ -57,7 +57,7 @@ namespace SampleApp
             if (!initialized) return;
 
             var currentSpan = SpanState.Current;
-            //var currentSpan = Span.Current;
+
             //this is an example of custom context propagation
             string isSampledStr;
 
@@ -93,7 +93,7 @@ namespace SampleApp
             return true;
         }
 
-        //logger could use SpanState.Current or remember the last Span it received
+        //logger could use SpanState.Current or keep the last Span it received in static AsyncLocal variable
         public IDisposable BeginScope<TState>(TState state)
         {
             return new NoopScope();

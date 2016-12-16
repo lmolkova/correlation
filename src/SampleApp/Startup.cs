@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Ext;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Correlation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,7 +28,7 @@ namespace SampleApp
         {
             // Add framework services.
             services.AddMvc();
-            services.AddSingleton<IEndpointFilter>(new EndpointFilter(new[] {"localhost:9200"}, false));
+            services.Configure<CorrelationConfigurationOptions>(Configuration.GetSection("Correlation"));
             services.AddSingleton(new HttpClient());
         }
 
@@ -50,13 +51,15 @@ namespace SampleApp
 
             app.UseStaticFiles();
 
-            app.UseCorrelationInstrumentation(Configuration.GetSection("Correlation"));
+            app.UseCorrelationInstrumentation();
             app.UseMvc(routes =>
             {
                 routes.MapRoute(
                     name: "default",
                     template: "{controller=Home}/{action=Index}/{id?}");
             });
+
+            loggerFactory.CreateLogger("123").LogInformation("start");
         }
     }
 }

@@ -19,8 +19,6 @@ namespace System.Diagnostics.Context
         public Span(SpanContext context, string operationName, long timestamp, Span parent)
         {
             spanContext = context;
-            if (parent != null)
-                spanContext.ParentSpanId = parent.spanContext.SpanId;
 
             OperationName = operationName;
             StartTimestamp = DateTime.UtcNow;
@@ -33,10 +31,12 @@ namespace System.Diagnostics.Context
         public SpanContext GetContext()
         {
             var currentSpan = this;
-            var result = new SpanContext(currentSpan.spanContext.SpanId)
-            {
-                ParentSpanId = spanContext.ParentSpanId
-            };
+            var result = new SpanContext(currentSpan.spanContext.SpanId);
+
+            if (spanContext.ParentSpanId != null)
+                result.ParentSpanId = spanContext.ParentSpanId;
+            else if (Parent != null)
+                result.ParentSpanId = Parent.spanContext.SpanId;
 
             while (currentSpan != null)
             {
@@ -77,7 +77,7 @@ namespace System.Diagnostics.Context
             var context = GetContext();
             result.Add(new KeyValuePair<string, string>(nameof(context.CorrelationId), context.CorrelationId));
             result.Add(new KeyValuePair<string, string>(nameof(context.SpanId), context.SpanId));
-            result.Add(new KeyValuePair<string, string>(nameof(context.ParentSpanId), spanContext.ParentSpanId));
+            result.Add(new KeyValuePair<string, string>(nameof(context.ParentSpanId), context.ParentSpanId));
             result.AddRange(context.Baggage);
             result.AddRange(Tags);
             return result;
@@ -95,6 +95,9 @@ namespace System.Diagnostics.Context
             sb.Append($"{nameof(context.SpanId)}={context.SpanId},");
             if (context.CorrelationId != null)
                 sb.Append($"{nameof(context.CorrelationId)}={context.CorrelationId},");
+            if (context.ParentSpanId != null)
+                sb.Append($"{nameof(context.ParentSpanId)}={context.ParentSpanId},");
+
             sb.Append(dictionaryToString(context.Baggage));
             return sb.ToString();
         }
