@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.Context;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using Nest;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
@@ -56,12 +57,11 @@ namespace SampleApp
         {
             if (!initialized) return;
 
-            var currentSpan = Span.Current;
-
+            var span = Span.Current;
             //this is an example of custom context propagation
             string isSampledStr;
 
-            if (currentSpan != null && currentSpan.TryGetBaggageItem("isSampled", out isSampledStr))
+            if (span != null && span.TryGetBaggageItem("isSampled", out isSampledStr))
             {
                 if (isSampledStr != bool.TrueString)
                     return;
@@ -77,11 +77,11 @@ namespace SampleApp
                 ["CategoryName"] = categoryName
             };
 
-            if (currentSpan != null)
+            if (span != null)
             {
-                document["OperationName"] = currentSpan.OperationName;
-                document["OperationStarted"] = currentSpan.StartTimestamp;
-                foreach (var kv in currentSpan.GetProperties())
+                document["OperationName"] = span.OperationName;
+                document["OperationStarted"] = span.StartTimestamp;
+                foreach (var kv in span.GetProperties())
                     document[kv.Key] = kv.Value;
             }
 
@@ -93,7 +93,6 @@ namespace SampleApp
             return true;
         }
 
-        //logger could use SpanState.Current or keep the last Span it received in static AsyncLocal variable
         public IDisposable BeginScope<TState>(TState state)
         {
             return new NoopScope();
@@ -105,5 +104,21 @@ namespace SampleApp
             {
             }
         }
+    }
+
+    public static class SpanExtenstions
+    {
+        public static IEnumerable<KeyValuePair<string, string>> GetProperties(this Span span)
+        {
+            var result = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("spanId", span.SpanContext.SpanId),
+                new KeyValuePair<string, string>("parentSpanId", span.SpanContext.ParentSpanId)
+            };
+            result.AddRange(span.SpanContext.Baggage);
+            result.AddRange(span.Tags);
+            return result;
+        }
+
     }
 }

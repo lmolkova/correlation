@@ -4,8 +4,11 @@ using System.Threading;
 
 namespace System.Diagnostics.Context
 {
-    public class Span : IDisposable
+    public class Span
     {
+        private static readonly DiagnosticListener DiagnosticListener =
+            new DiagnosticListener(SpanDiagnosticListenerStrings.SpanDiagnosticListenerName);
+
         public readonly string OperationName;
         public readonly DateTime StartTimestamp;
         public readonly IList<KeyValuePair<string, string>> Tags = new List<KeyValuePair<string, string>>();
@@ -14,9 +17,14 @@ namespace System.Diagnostics.Context
         public readonly Span Parent;
 
         public TimeSpan Duration { get; private set; }
-        public bool IsFinished { get; private set; }
+        private bool isFinished;
 
         private readonly long preciseStartTimestamp;
+
+        //Items provides similar functionality to HttpRequestMessage.Properties
+        //Since we write to diagnostic source about Span Start and Stop, users may need to keep some properties associated with the Span, like ILogger scope
+        //Items are not logged and not propagated
+        public readonly IDictionary<string,object> Items = new Dictionary<string, object>();
 
         internal Span(SpanContext context, string operationName, long timestamp, Span parent)
         {
@@ -30,6 +38,11 @@ namespace System.Diagnostics.Context
             Duration = TimeSpan.Zero;
         }
 
+        public void Start()
+        {
+            DiagnosticListener.LogSpanStart(this);
+        }
+
         public void AddTag(string key, string value)
         {
             Tags.Add(new KeyValuePair<string, string>(key, value));
@@ -37,7 +50,7 @@ namespace System.Diagnostics.Context
 
         public void SetBaggageItem(string key, string value)
         {
-            SpanContext.Baggage.Add(new KeyValuePair<string, string>(key, value));
+            SpanContext.Baggage[key] = value;
         }
 
         public bool TryGetBaggageItem(string key, out string item)
@@ -45,31 +58,24 @@ namespace System.Diagnostics.Context
             return SpanContext.Baggage.TryGetValue(key, out item);
         }
 
-        //Return all properties: tags + context for logging purposes
-        public IEnumerable<KeyValuePair<string,string>> GetProperties()
-        {
-            var result = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("spanId", SpanContext.SpanId),
-                new KeyValuePair<string, string>("parentSpanId", SpanContext.ParentSpanId)
-            };
-            result.AddRange(SpanContext.Baggage);
-            result.AddRange(Tags);
-            return result;
-        }
-
         public override string ToString()
         {
             return $"operation: {OperationName}, context: {{{spanContextToString(SpanContext)}}}, tags: {{{dictionaryToString(Tags)}}}, started {StartTimestamp:o}";
         }
 
+        public void Finish()
+        {
+            Finish(Stopwatch.GetTimestamp());
+        }
+
         public void Finish(long timestamp)
         {
-            if (!IsFinished)
+            if (!isFinished)
             {
                 Duration = TimeSpan.FromTicks(timestamp - preciseStartTimestamp);
+                DiagnosticListener.LogSpanStop(this);
             }
-            IsFinished = true;
+            isFinished = true;
         }
 
         private static readonly AsyncLocal<Span> Value = new AsyncLocal<Span>();
@@ -87,12 +93,22 @@ namespace System.Diagnostics.Context
             if (span.Parent != Current)
                 throw new InvalidOperationException("Cannot push Span which parent is not Current");
             Current = span;
-            return span;
+            return new DisposableSpan(span);
         }
 
-        public void Dispose()
+        private class DisposableSpan : IDisposable
         {
-            Current = Parent;
+            private readonly Span span;
+
+            public DisposableSpan(Span span)
+            {
+                this.span = span;
+            }
+
+            public void Dispose()
+            {
+                Current = span.Parent;
+            }
         }
 
         private string spanContextToString(SpanContext context)

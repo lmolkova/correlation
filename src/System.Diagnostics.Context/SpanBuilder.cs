@@ -43,7 +43,7 @@ namespace System.Diagnostics.Context
             return this;
         }
 
-        public Span Start()
+        public Span Build()
         {
             if (parentContext == null)
                 throw new InvalidOperationException("Cannot build Span without SpanContext");
@@ -56,9 +56,8 @@ namespace System.Diagnostics.Context
             var span = new Span(spanContext, operationName, startTimestamp.Value, parentSpan);
             foreach (var tag in tags)
             {
-                span.AddTag(tag.Key, tag.Value);
+                span.AddTag(tag.Key, tag.Value);                
             }
-
             return span;
         }
 

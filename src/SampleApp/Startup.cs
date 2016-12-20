@@ -1,17 +1,14 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Diagnostics.Context;
-using System.Linq;
 using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Ext;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Correlation;
-using Microsoft.Extensions.Correlation.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
 
 namespace SampleApp
 {
@@ -38,12 +35,26 @@ namespace SampleApp
             services.AddSingleton(new HttpClient());
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        private void SubsribeToSpanEvents(ILoggerFactory loggerFactory, IApplicationLifetime applicationLifetime)
         {
-            loggerFactory
+            var subscription = DiagnosticListener.AllListeners.Subscribe(delegate (DiagnosticListener listener)
+            {
+                if (listener.Name == "SpanDiagnosticListener")
+                    listener.Subscribe(new SpanObserver(loggerFactory));
+            });
+
+            applicationLifetime.ApplicationStopped.Register(() => subscription?.Dispose());
+        }
+
+        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory, IApplicationLifetime applicationLifetime)
+        {
+            loggerFactory.WithFilter(new FilterLoggerSettings
+                {
+                    {"Microsoft", LogLevel.Warning},
+                })
                 .AddConsole(Configuration.GetSection("Logging"))
-                //.AddDebug()
+                .AddDebug()
                 .AddElasicSearch();
 
             if (env.IsDevelopment())
@@ -56,6 +67,8 @@ namespace SampleApp
                 app.UseExceptionHandler("/Home/Error");
             }
             app.UseStaticFiles();
+
+            SubsribeToSpanEvents(loggerFactory, applicationLifetime);
 
             app.UseCorrelationInstrumentation();
             app.UseMvc(routes =>

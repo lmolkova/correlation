@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Ext.Internal;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Correlation;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Ext
@@ -22,14 +21,12 @@ namespace Microsoft.AspNetCore.Ext
         /// <returns><see cref="IApplicationBuilder"/> application builder</returns>
         public static IApplicationBuilder UseCorrelationInstrumentation(this IApplicationBuilder app)
         {
-            var loggerFactory = app.ApplicationServices.GetRequiredService(typeof(ILoggerFactory)) as ILoggerFactory;
-            app.UseMiddleware<CorrelationMiddleware>(loggerFactory);
-            var requestNotifier = app.ApplicationServices.GetService(typeof(IOutgoingRequestNotifier)) as IOutgoingRequestNotifier;
+            app.UseMiddleware<CorrelationMiddleware>();
+
             var options = app.ApplicationServices.GetService(typeof(IOptions<CorrelationConfigurationOptions>)) as IOptions<CorrelationConfigurationOptions>;
 
             var instrumentaion = CorrelationHttpInstrumentation.Enable(
-                options?.Value ?? new CorrelationConfigurationOptions(),
-                requestNotifier ?? new DefaultOutgoingRequestNotifier(loggerFactory));
+                options?.Value ?? new CorrelationConfigurationOptions());
 
             var appLifetime = app.ApplicationServices.GetRequiredService(typeof(IApplicationLifetime)) as IApplicationLifetime;
             appLifetime?.ApplicationStopped.Register(() => instrumentaion?.Dispose());
