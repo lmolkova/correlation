@@ -56,7 +56,7 @@ namespace SampleApp
         {
             if (!initialized) return;
 
-            var currentSpan = SpanState.Current;
+            var currentSpan = Span.Current;
 
             //this is an example of custom context propagation
             string isSampledStr;

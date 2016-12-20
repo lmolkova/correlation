@@ -1,9 +1,15 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Diagnostics;
+using System.Diagnostics.Context;
+using System.Linq;
+using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Ext;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Correlation;
+using Microsoft.Extensions.Correlation.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -37,8 +43,9 @@ namespace SampleApp
         {
             loggerFactory
                 .AddConsole(Configuration.GetSection("Logging"))
-                .AddDebug()
+                //.AddDebug()
                 .AddElasicSearch();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -48,7 +55,6 @@ namespace SampleApp
             {
                 app.UseExceptionHandler("/Home/Error");
             }
-
             app.UseStaticFiles();
 
             app.UseCorrelationInstrumentation();
@@ -58,8 +64,6 @@ namespace SampleApp
                     name: "default",
                     template: "{controller=Home}/{action=Index}/{id?}");
             });
-
-            loggerFactory.CreateLogger("123").LogInformation("start");
         }
     }
 }

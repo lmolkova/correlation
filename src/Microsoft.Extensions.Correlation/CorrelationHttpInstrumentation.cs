@@ -2,37 +2,33 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Extensions.Correlation.Internal;
-using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.Correlation
 {
     //TODO: this should be refactored once AspNetDiagListener is eliminated
     public class CorrelationHttpInstrumentation
     {
-        private const string HttpListenerName = "HttpHandlerDiagnosticListener";
-        public static IDisposable Enable(CorrelationConfigurationOptions settings, ILoggerFactory loggerFactory)
+        public static IDisposable Enable(CorrelationConfigurationOptions settings, IOutgoingRequestNotifier requestNotifier)
         {
-            var observers = new Dictionary<string, IObserver<KeyValuePair<string, object>>>();
-
-            if (settings.InstrumentOutgoingRequests)
+            var observer = CreateObserver(settings, requestNotifier);
+            if (observer != null)
             {
-                var observer = CreateObserver(settings, loggerFactory);
-                if (observer != null)
+                return DiagnosticListener.AllListeners.Subscribe(delegate(DiagnosticListener listener)
                 {
-                    observers.Add(HttpListenerName, observer);
-                    return DiagnosticListener.AllListeners.Subscribe(new DiagnosticListenersObserver(observers));
-                }
+                    if (listener.Name == "HttpHandlerDiagnosticListener")
+                        listener.Subscribe(observer);
+                });
             }
-
             return new NoopDisposable();
         }
 
-        public static IObserver<KeyValuePair<string, object>> CreateObserver(CorrelationConfigurationOptions options, ILoggerFactory loggerFactory)
+        public static IObserver<KeyValuePair<string, object>> CreateObserver(CorrelationConfigurationOptions options, IOutgoingRequestNotifier requestNotifier)
         {
             if (options.InstrumentOutgoingRequests)
             {
-                return new HttpDiagnosticListenerObserver(loggerFactory.CreateLogger<HttpDiagnosticListenerObserver>(),
-                        new EndpointFilter(options.EndpointFilter.Endpoints, options.EndpointFilter.Allow));
+                return new HttpDiagnosticListenerObserver(
+                    new EndpointFilter(options.EndpointFilter.Endpoints, options.EndpointFilter.Allow),
+                    requestNotifier);
             }
             return null;
         }

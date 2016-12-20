@@ -4,18 +4,25 @@ namespace System.Diagnostics.Context
 {
     public class SpanContext
     {
-        public readonly string SpanId;
+        public string SpanId { get; set; }
+
         public string ParentSpanId { get; set; }
-        public string CorrelationId { get; set; }
+        public IDictionary<string, string> Baggage { get; internal set; }
 
-        public readonly IDictionary<string, string> Baggage = new Dictionary<string, string>();
-
-        public SpanContext(string spanId)
+        public SpanContext()
         {
-            if (spanId == null)
-                throw new ArgumentNullException(nameof(spanId));
+            Baggage = new Dictionary<string, string>();
+        }
 
-            SpanId = spanId;
+        public SpanContext GetChildSpanContext(string spanId)
+        {
+            var result = new SpanContext
+            {
+                SpanId = spanId,
+                ParentSpanId = SpanId,
+                Baggage = Baggage
+            };
+            return result;
         }
     }
 }
