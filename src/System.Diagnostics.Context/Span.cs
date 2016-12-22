@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -12,9 +13,9 @@ namespace System.Diagnostics.Context
         public readonly string OperationName;
         public readonly DateTime StartTimestamp;
         public readonly IList<KeyValuePair<string, string>> Tags = new List<KeyValuePair<string, string>>();
-        public readonly SpanContext SpanContext;
-
+        public readonly IDictionary<string,string> SpanContext;
         public readonly Span Parent;
+        public readonly string SpanId;
 
         public TimeSpan Duration { get; private set; }
         private bool isFinished;
@@ -26,9 +27,10 @@ namespace System.Diagnostics.Context
         //Items are not logged and not propagated
         public readonly IDictionary<string,object> Items = new Dictionary<string, object>();
 
-        internal Span(SpanContext context, string operationName, long timestamp, Span parent)
+        internal Span(IDictionary<string, string> context, string operationName, long timestamp, Span parent)
         {
-            SpanContext = context;
+            SpanContext = context.ToDictionary(kv => kv.Key, kv => kv.Value);
+            SpanId = GenerateSpanId();
             OperationName = operationName;
             Parent = parent;
 
@@ -36,6 +38,26 @@ namespace System.Diagnostics.Context
                 DateTime.UtcNow.AddTicks(timestamp - Stopwatch.GetTimestamp()) : new DateTime(timestamp);
             preciseStartTimestamp = timestamp;
             Duration = TimeSpan.Zero;
+        }
+
+        public static Span CreateSpan(IDictionary<string, string> context, string operationName, long timestamp)
+        {
+            return new Span(context, operationName, timestamp, Current);
+        }
+
+        public static Span CreateSpan(string operationName, long timestamp)
+        {
+            if (Current == null)
+            {
+                throw new InvalidOperationException("Cannot create Span without Parent and Context");
+            }
+
+            return new Span(Current.SpanContext, operationName, timestamp, Current);
+        }
+
+        private static string GenerateSpanId()
+        {
+            return Guid.NewGuid().ToString();
         }
 
         public void Start()
@@ -50,17 +72,17 @@ namespace System.Diagnostics.Context
 
         public void SetBaggageItem(string key, string value)
         {
-            SpanContext.Baggage[key] = value;
+            SpanContext[key] = value;
         }
 
         public bool TryGetBaggageItem(string key, out string item)
         {
-            return SpanContext.Baggage.TryGetValue(key, out item);
+            return SpanContext.TryGetValue(key, out item);
         }
 
         public override string ToString()
         {
-            return $"operation: {OperationName}, context: {{{spanContextToString(SpanContext)}}}, tags: {{{dictionaryToString(Tags)}}}, started {StartTimestamp:o}";
+            return $"operation: {OperationName}, context: {{{dictionaryToString(SpanContext)}}}, tags: {{{dictionaryToString(Tags)}}}, started {StartTimestamp:o}";
         }
 
         public void Finish()
@@ -109,15 +131,6 @@ namespace System.Diagnostics.Context
             {
                 Current = span.Parent;
             }
-        }
-
-        private string spanContextToString(SpanContext context)
-        {
-            var sb = new StringBuilder();
-            sb.Append($"spanId={context.SpanId},");
-            sb.Append($"parentSpanId={context.ParentSpanId},");
-            sb.Append(dictionaryToString(context.Baggage));
-            return sb.ToString();
         }
 
         private string dictionaryToString(IEnumerable<KeyValuePair<string, string>> dictionary)

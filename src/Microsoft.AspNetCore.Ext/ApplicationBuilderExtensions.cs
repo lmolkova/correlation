@@ -21,12 +21,11 @@ namespace Microsoft.AspNetCore.Ext
         /// <returns><see cref="IApplicationBuilder"/> application builder</returns>
         public static IApplicationBuilder UseCorrelationInstrumentation(this IApplicationBuilder app)
         {
-            app.UseMiddleware<CorrelationMiddleware>();
-
             var options = app.ApplicationServices.GetService(typeof(IOptions<CorrelationConfigurationOptions>)) as IOptions<CorrelationConfigurationOptions>;
+            CorrelationConfigurationOptions correlationOptions = options?.Value ?? new CorrelationConfigurationOptions();
 
-            var instrumentaion = CorrelationHttpInstrumentation.Enable(
-                options?.Value ?? new CorrelationConfigurationOptions());
+            app.UseMiddleware<CorrelationMiddleware>();
+            var instrumentaion = CorrelationHttpInstrumentation.Enable(correlationOptions);
 
             var appLifetime = app.ApplicationServices.GetRequiredService(typeof(IApplicationLifetime)) as IApplicationLifetime;
             appLifetime?.ApplicationStopped.Register(() => instrumentaion?.Dispose());

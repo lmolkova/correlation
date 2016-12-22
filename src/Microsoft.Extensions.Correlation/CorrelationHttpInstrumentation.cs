@@ -1,18 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Extensions.Correlation.Internal;
 
 namespace Microsoft.Extensions.Correlation
 {
-    //TODO: this should be refactored once AspNetDiagListener is eliminated
     public class CorrelationHttpInstrumentation
     {
-        public static IDisposable Enable(CorrelationConfigurationOptions settings)
+        public static IDisposable Enable(CorrelationConfigurationOptions options)
         {
-            var observer = CreateObserver(settings);
-            if (observer != null)
+            var headerMap = new HeaderToBaggageMap(options.Headers);
+            if (options.InstrumentOutgoingRequests)
             {
+                var observer = new HttpDiagnosticListenerObserver(new EndpointFilter(options.EndpointFilter.Endpoints, options.EndpointFilter.Allow), headerMap);
                 return DiagnosticListener.AllListeners.Subscribe(delegate(DiagnosticListener listener)
                 {
                     if (listener.Name == "HttpHandlerDiagnosticListener")
@@ -20,16 +19,6 @@ namespace Microsoft.Extensions.Correlation
                 });
             }
             return new NoopDisposable();
-        }
-
-        public static IObserver<KeyValuePair<string, object>> CreateObserver(CorrelationConfigurationOptions options)
-        {
-            if (options.InstrumentOutgoingRequests)
-            {
-                return new HttpDiagnosticListenerObserver(
-                    new EndpointFilter(options.EndpointFilter.Endpoints, options.EndpointFilter.Allow));
-            }
-            return null;
         }
 
         private class NoopDisposable : IDisposable

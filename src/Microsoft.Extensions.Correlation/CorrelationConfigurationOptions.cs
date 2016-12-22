@@ -29,6 +29,21 @@ namespace Microsoft.Extensions.Correlation
 
         public bool InstrumentOutgoingRequests { get; set; }
         public EndpointFilterOptions EndpointFilter { get; set; }
+        public HeaderOptions Headers { get; set; }
+
+        public class HeaderOptions
+        {
+            public string CorrelationIdHeader { get; set; }
+            public string SpanIdHeader { get; set; }
+            public string BaggageHeaderPrefix { get; set; }
+
+            public HeaderOptions()
+            {
+                CorrelationIdHeader = "x-ms-correlation-id";
+                SpanIdHeader = "x-ms-request-id";
+                BaggageHeaderPrefix = "x-baggage-";
+            }
+        }
     }
 }
 

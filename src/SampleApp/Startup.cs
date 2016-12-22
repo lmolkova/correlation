@@ -51,7 +51,7 @@ namespace SampleApp
         {
             loggerFactory.WithFilter(new FilterLoggerSettings
                 {
-                    {"Microsoft", LogLevel.Warning},
+//                    {"Microsoft", LogLevel.Warning},
                 })
                 .AddConsole(Configuration.GetSection("Logging"))
                 .AddDebug()

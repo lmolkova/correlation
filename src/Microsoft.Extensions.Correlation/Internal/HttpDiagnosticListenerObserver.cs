@@ -16,11 +16,10 @@ namespace Microsoft.Extensions.Correlation.Internal
     {
         private readonly EndpointFilter filter;
         private readonly Tracer tracer;
-
-        public HttpDiagnosticListenerObserver(EndpointFilter filter)
+        public HttpDiagnosticListenerObserver(EndpointFilter filter, HeaderToBaggageMap headerMap)
         {
             this.filter = filter;
-            tracer = new Tracer();
+            tracer = new Tracer(headerMap);
         }
 
         public void OnNext(KeyValuePair<string, object> value)
@@ -37,12 +36,10 @@ namespace Microsoft.Extensions.Correlation.Internal
                 {
                     if (filter.Validate(request.RequestUri))
                     {
-                        var span = new SpanBuilder("Outgoing request")
-                            .AsChildOf(Span.Current)
-                            .WithStartTimestamp((long) timestamp)
-                            .WithTag("Uri", request.RequestUri.ToString())
-                            .WithTag("Method", request.Method.ToString())
-                            .Build();
+                        var span = Span.CreateSpan("Outgoing request", (long) timestamp);
+                        span.AddTag("Uri", request.RequestUri.ToString());
+                        span.AddTag("Method", request.Method.ToString());
+                        span.AddTag("ParentSpanId", Span.Current.SpanId);
                         //See WinHttpHandler: all methods in HttpClient till DiagnosticSource call are not async
                         //If HttpClient.SendAsync is called without await in user code all of those calls will share the same ExecutionContext
                         //If we don't run it in a new task, current Span will become parent of the next outgoing http request

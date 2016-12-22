@@ -1,38 +1,83 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics.Context;
-using System.Linq;
 
 namespace Microsoft.Extensions.Correlation
 {
+    public class HeaderToBaggageMap
+    {
+        public readonly string BaggageHeaderPrefix;
+        public const string CorrelationIdBaggageKey = "CorrelationId";
+        public const string SpanIdBaggageKey = "SpanId";
+
+        public HeaderToBaggageMap(CorrelationConfigurationOptions.HeaderOptions headerOptions)
+        {
+            BaggageHeaderPrefix = headerOptions.BaggageHeaderPrefix;
+            Add(SpanIdBaggageKey, headerOptions.SpanIdHeader);
+            Add(CorrelationIdBaggageKey, headerOptions.CorrelationIdHeader);
+        }
+
+        private readonly Dictionary<string, string> baggageKeys = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> headerNames = new Dictionary<string, string>();
+
+        public void Add(string baggageKey, string headerName)
+        {
+            headerNames[baggageKey] = headerName;
+            baggageKeys[headerName] = baggageKey;
+        }
+
+        public bool TryGetBaggageKey(string headerName, out string baggageKey)
+        {
+            return baggageKeys.TryGetValue(headerName, out baggageKey);
+        }
+
+        public bool TryGetHeaderName(string baggageKey, out string headerName)
+        {
+            return headerNames.TryGetValue(baggageKey, out headerName);
+        }
+    }
+
     public class Tracer
     {
-        public static string SpanIdHeaderName = "x-ms-request-id";
-        public static string BaggagePrefix = "x-ms-";
-
-        public SpanContext Extract(IDictionary<string, string> headers)
+        private readonly HeaderToBaggageMap headerMap;
+        public Tracer(HeaderToBaggageMap headerMap) 
         {
-            var context = new SpanContext();
+            this.headerMap = headerMap;
+        }
 
-            if (headers.ContainsKey(SpanIdHeaderName))
+        public IDictionary<string, string> Extract(IDictionary<string, string> headers)
+        {
+            var context = new Dictionary<string, string>();
+            foreach (var header in headers)
             {
-                context.SpanId = headers[SpanIdHeaderName];
-            }
-            foreach (var header in headers.Where(header => header.Key.StartsWith(BaggagePrefix) && header.Key != SpanIdHeaderName))
-            {
-                //TODO: decode header value: dash to camelCase
-                context.Baggage.Add(header.Key.Remove(0, BaggagePrefix.Length), header.Value);
+                string baggageKey;
+                if (headerMap.TryGetBaggageKey(header.Key, out baggageKey))
+                {
+                    context.Add(baggageKey, header.Value);
+                }
+                else
+                {
+                    context.Add(headerMap.BaggageHeaderPrefix + baggageKey, header.Value);
+                }
+                //TODO: encode header name: camelCase to dash? and value
             }
 
             return context;
         }
 
-        public IDictionary<string, string> Inject(SpanContext spanContext)
+        public IDictionary<string, string> Inject(IDictionary<string, string> spanContext)
         {
-            var headers = new Dictionary<string, string> {{SpanIdHeaderName, spanContext.SpanId}};
-            foreach (var kv in spanContext.Baggage)
+            var headers = new Dictionary<string,string>();
+            foreach (var kv in spanContext)
             {
-                //TODO: encode header value: camelCase to dash?
-                headers.Add(BaggagePrefix + kv.Key, kv.Value);
+                string headerName;
+                if (headerMap.TryGetHeaderName(kv.Key, out headerName))
+                {
+                    headers.Add(headerName, kv.Value);
+                }
+                else
+                {
+                    headers.Add(headerMap.BaggageHeaderPrefix + kv.Key, kv.Value);
+                }
+                //TODO: encode header name: camelCase to dash? and value
             }
             return headers;
         }

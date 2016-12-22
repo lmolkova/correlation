@@ -110,12 +110,8 @@ namespace SampleApp
     {
         public static IEnumerable<KeyValuePair<string, string>> GetProperties(this Span span)
         {
-            var result = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("spanId", span.SpanContext.SpanId),
-                new KeyValuePair<string, string>("parentSpanId", span.SpanContext.ParentSpanId)
-            };
-            result.AddRange(span.SpanContext.Baggage);
+            var result = new List<KeyValuePair<string, string>>();
+            result.AddRange(span.SpanContext);
             result.AddRange(span.Tags);
             return result;
         }
