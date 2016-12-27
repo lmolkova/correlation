@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Context;
+using System.Diagnostics.Activity;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using Nest;
@@ -57,12 +57,12 @@ namespace SampleApp
         {
             if (!initialized) return;
 
-            var span = Span.Current;
+            var activity = Activity.Current;
             //this is an example of custom context propagation
-            string isSampledStr;
 
-            if (span != null && span.TryGetBaggageItem("isSampled", out isSampledStr))
+            if (activity != null)
             {
+                var isSampledStr = activity.GetBaggageItem("isSampled");
                 if (isSampledStr != bool.TrueString)
                     return;
             }
@@ -77,11 +77,11 @@ namespace SampleApp
                 ["CategoryName"] = categoryName
             };
 
-            if (span != null)
+            if (activity != null)
             {
-                document["OperationName"] = span.OperationName;
-                document["OperationStarted"] = span.StartTimestamp;
-                foreach (var kv in span.GetProperties())
+                document["OperationName"] = activity.OperationName;
+                document["OperationStarted"] = activity.StartTime;
+                foreach (var kv in activity.GetProperties())
                     document[kv.Key] = kv.Value;
             }
 
@@ -108,11 +108,12 @@ namespace SampleApp
 
     public static class SpanExtenstions
     {
-        public static IEnumerable<KeyValuePair<string, string>> GetProperties(this Span span)
+        public static IEnumerable<KeyValuePair<string, string>> GetProperties(this Activity span)
         {
             var result = new List<KeyValuePair<string, string>>();
-            result.AddRange(span.SpanContext);
+            result.AddRange(span.Baggage);
             result.AddRange(span.Tags);
+            result.Add(new KeyValuePair<string, string>("Id", span.Id));
             return result;
         }
 

@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.Context;
-using System.Linq;
+﻿using System.Diagnostics.Activity;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Correlation;
@@ -10,39 +8,44 @@ namespace Microsoft.AspNetCore.Ext.Internal
     internal class CorrelationMiddleware
     {
         private readonly RequestDelegate next;
-        //TODO: we need to ensure correlationId is in the baggage or generate one
-        //there is a dependency between header name and baggage key name, and this is error prone
-        //Tracer knows about header names, but it should not generate correlationId
-        private readonly Tracer tracer;
-        public CorrelationMiddleware(RequestDelegate next, HeaderToBaggageMap headerMap)
+        private readonly CorrelationConfigurationOptions.HeaderOptions headerMap;
+
+        public CorrelationMiddleware(RequestDelegate next, CorrelationConfigurationOptions.HeaderOptions headerMap)
         {
             this.next = next;
-            tracer = new Tracer(headerMap);
+            this.headerMap = headerMap;
         }
 
         public async Task Invoke(HttpContext context)
         {
-            var spanContext = tracer.Extract(context.Request.Headers.ToDictionary(kv => kv.Key, kv => kv.Value.First()));
-            var span = Span.CreateSpan(spanContext, "Incoming request", Stopwatch.GetTimestamp());
-            span.AddTag("Path", context.Request.Path);
-            span.AddTag("Method", context.Request.Method);
-            span.AddTag("RequestId", context.TraceIdentifier);
-
-            string parentSpanId;
-            if (spanContext.TryGetValue(HeaderToBaggageMap.SpanIdBaggageKey, out parentSpanId))
+            var activity = new Activity("Incoming request");
+            foreach (var header in context.Request.Headers)
             {
-                span.AddTag("ParentSpanId", parentSpanId);
+                if (header.Key == headerMap.ActivityIdHeaderName)
+                {
+                    activity.WithTag("ParentId", header.Value);
+                }
+                else
+                {
+                    var baggageKey = headerMap.GetBaggageKey(header.Key);
+                    if (baggageKey != null)
+                        activity.WithBaggage(baggageKey, header.Value);
+                }
             }
 
-            string correlationId;
-            if (!span.TryGetBaggageItem(HeaderToBaggageMap.CorrelationIdBaggageKey, out correlationId))
-                span.SetBaggageItem(HeaderToBaggageMap.CorrelationIdBaggageKey, span.SpanContext[HeaderToBaggageMap.SpanIdBaggageKey]);
+            if (!context.Request.Headers.Keys.Contains(headerMap.CorrelationIdHeaderName))
+                activity.WithBaggage(headerMap.GetBaggageKey(headerMap.CorrelationIdHeaderName), activity.Id);
 
-            using (Span.Push(span))
+            activity.WithTag("Path", context.Request.Path)
+                .WithTag("Method", context.Request.Method)
+                .WithTag("RequestId", context.TraceIdentifier)
+                .Start(DateTimeStopwatch.GetTime());
+            //we start activity here with new Id and parentId from request header (if any)
+            //there might be the case when user created his own activity with some baggage in custom middleware
+            //so this activity has parent (which will be null in all cases except above one)
+            using (activity)
             {
-                span.Start();
                 await next.Invoke(context);
-                span.Finish();
             }
         }
     }

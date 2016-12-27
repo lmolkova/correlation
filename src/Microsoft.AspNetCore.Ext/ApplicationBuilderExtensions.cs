@@ -24,7 +24,7 @@ namespace Microsoft.AspNetCore.Ext
             var options = app.ApplicationServices.GetService(typeof(IOptions<CorrelationConfigurationOptions>)) as IOptions<CorrelationConfigurationOptions>;
             CorrelationConfigurationOptions correlationOptions = options?.Value ?? new CorrelationConfigurationOptions();
 
-            app.UseMiddleware<CorrelationMiddleware>();
+            app.UseMiddleware<CorrelationMiddleware>(correlationOptions.Headers);
             var instrumentaion = CorrelationHttpInstrumentation.Enable(correlationOptions);
 
             var appLifetime = app.ApplicationServices.GetRequiredService(typeof(IApplicationLifetime)) as IApplicationLifetime;

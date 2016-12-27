@@ -13,6 +13,7 @@ namespace Microsoft.Extensions.Correlation
         {
             InstrumentOutgoingRequests = true;
             EndpointFilter = new EndpointFilterOptions();
+            Headers = new HeaderOptions();
         }
 
         public class EndpointFilterOptions
@@ -33,16 +34,37 @@ namespace Microsoft.Extensions.Correlation
 
         public class HeaderOptions
         {
-            public string CorrelationIdHeader { get; set; }
-            public string SpanIdHeader { get; set; }
+            public string CorrelationIdHeaderName { get; set; }
+            public string ActivityIdHeaderName { get; set; }
             public string BaggageHeaderPrefix { get; set; }
 
             public HeaderOptions()
             {
-                CorrelationIdHeader = "x-ms-correlation-id";
-                SpanIdHeader = "x-ms-request-id";
+                CorrelationIdHeaderName = "x-ms-correlation-id";
+                ActivityIdHeaderName = "x-ms-request-id";
                 BaggageHeaderPrefix = "x-baggage-";
             }
+
+            public string GetBaggageKey(string headerName)
+            {
+                if (headerName == CorrelationIdHeaderName)
+                    return CorrelationIdBaggageKey;
+
+                if (headerName.StartsWith(BaggageHeaderPrefix))
+                    return headerName.Remove(0, BaggageHeaderPrefix.Length);
+
+                return null;
+            }
+
+            public string GetHeaderName(string baggageKey)
+            {
+                if (baggageKey == CorrelationIdBaggageKey)
+                    return CorrelationIdHeaderName;
+
+                return BaggageHeaderPrefix + baggageKey;
+            }
+
+            private const string CorrelationIdBaggageKey = "CorrelationId";
         }
     }
 }

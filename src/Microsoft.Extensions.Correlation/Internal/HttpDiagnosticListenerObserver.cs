@@ -5,27 +5,35 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Context;
+using System.Diagnostics.Activity;
 using System.Net.Http;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Microsoft.Extensions.Correlation.Internal
 {
     internal class HttpDiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>
     {
         private readonly EndpointFilter filter;
-        private readonly Tracer tracer;
-        public HttpDiagnosticListenerObserver(EndpointFilter filter, HeaderToBaggageMap headerMap)
+        private readonly CorrelationConfigurationOptions.HeaderOptions headerMap;
+        public HttpDiagnosticListenerObserver(EndpointFilter filter, CorrelationConfigurationOptions.HeaderOptions headerMap)
         {
             this.filter = filter;
-            tracer = new Tracer(headerMap);
+            this.headerMap = headerMap;
         }
 
         public void OnNext(KeyValuePair<string, object> value)
         {
             if (value.Value == null)
                 return;
+
+            //Request and Response events handling id done for 2 reasons
+            //1. inject headers
+            //2. We need to notify user about outgoing request;  user may want to log outgoing requests because 
+            //  - downstream service logs may not be available (it's external dependency or not instumented service)
+            //  - user may want to create visualization for operation flow and need parent-child relationship between requests:
+            //       e.g. service calls other service multiple times within the same operation (because of retries or business logic)
+            //       so activity id should be logged on this service and downstream service to uniquely map one request to another, having the same correlation id
+            //  - user is interested in client time difference with server time
 
             if (value.Key == "System.Net.Http.Request")
             {
@@ -36,26 +44,26 @@ namespace Microsoft.Extensions.Correlation.Internal
                 {
                     if (filter.Validate(request.RequestUri))
                     {
-                        var span = Span.CreateSpan("Outgoing request", (long) timestamp);
-                        span.AddTag("Uri", request.RequestUri.ToString());
-                        span.AddTag("Method", request.Method.ToString());
-                        span.AddTag("ParentSpanId", Span.Current.SpanId);
-                        //See WinHttpHandler: all methods in HttpClient till DiagnosticSource call are not async
-                        //If HttpClient.SendAsync is called without await in user code all of those calls will share the same ExecutionContext
-                        //If we don't run it in a new task, current Span will become parent of the next outgoing http request
-                        Task.Run(() =>
-                        {
-                            using (Span.Push(span))
-                                span.Start();
-                        });
+                        //we start new activity here: it's parent will be Current.Id, it's Id will be generated
+                        //new Id will become parent of incoming request on downstream service.
+                        //new Id may be logged by user in activity starting/stopping event
+                        //We should set Activity.Current to new activity
+                        var activity = new Activity("Outgoing request")
+                            .WithTag("Uri", request.RequestUri.ToString())
+                            .WithTag("Method", request.Method.ToString())
+                            .WithTag("ParentId", Activity.Current.Id);
+                        activity.Start(DateTimeStopwatch.GetTime((long)timestamp));
 
-                        var headers = tracer.Inject(span.SpanContext);
-                        foreach (var header in headers)
+                        request.Headers.Add(headerMap.ActivityIdHeaderName, activity.Id);
+                        foreach (var baggage in activity.Baggage)
                         {
-                            request.Headers.Add(header.Key, header.Value);
+                            request.Headers.Add(headerMap.GetHeaderName(baggage.Key), baggage.Value);
                         }
 
-                        request.Properties["span"] = span;
+                        request.Properties["activity"] = activity;
+                        //this code may run synchronously
+                        //Let's restore parent operation context so next HttpClient call will inherit proper context
+                        Activity.SetCurrent(activity.Parent);
                     }
                 }
             }
@@ -68,17 +76,12 @@ namespace Microsoft.Extensions.Correlation.Internal
                 {
                     if (filter.Validate(response.RequestMessage.RequestUri))
                     {
-                        var span = response.RequestMessage.Properties["span"] as Span;
-                        if (span != null)
+                        var activity = response.RequestMessage.Properties["activity"] as Activity;
+                        Activity.SetCurrent(activity);
+                        if (activity != null)
                         {
-                            span.AddTag("StatusCode", response.StatusCode.ToString());
-                            span.AddTag("Duration", $"{span.Duration.TotalMilliseconds}ms");
-
-                            Task.Run(() =>
-                            {
-                                using (Span.Push(span))
-                                    span.Finish((long)timestamp);
-                            });
+                            activity.WithTag("StatusCode", response.StatusCode.ToString());
+                            activity.Stop(DateTimeStopwatch.GetTime((long)timestamp) - activity.StartTime);
                         }
                     }
                 }
