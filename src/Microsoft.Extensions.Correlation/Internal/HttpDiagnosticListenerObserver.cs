@@ -81,7 +81,7 @@ namespace Microsoft.Extensions.Correlation.Internal
                         if (activity != null)
                         {
                             activity.WithTag("StatusCode", response.StatusCode.ToString());
-                            activity.Stop(DateTimeStopwatch.GetTime((long)timestamp) - activity.StartTime);
+                            activity.Stop(DateTimeStopwatch.GetTime((long)timestamp) - activity.StartTimeUtc);
                         }
                     }
                 }
