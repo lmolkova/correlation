@@ -5,23 +5,20 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Diagnostics.Context;
+using System.Diagnostics.Activity;
 using System.Net.Http;
-using Microsoft.Extensions.Logging;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Microsoft.Extensions.Correlation.Internal
 {
     internal class HttpDiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>
     {
         private readonly EndpointFilter filter;
-        private readonly ILogger<HttpDiagnosticListenerObserver> logger;
-        public HttpDiagnosticListenerObserver(ILogger<HttpDiagnosticListenerObserver> logger, EndpointFilter filter)
+        private readonly CorrelationConfigurationOptions.HeaderOptions headerMap;
+        public HttpDiagnosticListenerObserver(EndpointFilter filter, CorrelationConfigurationOptions.HeaderOptions headerMap)
         {
-            this.logger = logger;
             this.filter = filter;
+            this.headerMap = headerMap;
         }
 
         public void OnNext(KeyValuePair<string, object> value)
@@ -29,45 +26,63 @@ namespace Microsoft.Extensions.Correlation.Internal
             if (value.Value == null)
                 return;
 
+            //Request and Response events handling id done for 2 reasons
+            //1. inject headers
+            //2. We need to notify user about outgoing request;  user may want to log outgoing requests because 
+            //  - downstream service logs may not be available (it's external dependency or not instumented service)
+            //  - user may want to create visualization for operation flow and need parent-child relationship between requests:
+            //       e.g. service calls other service multiple times within the same operation (because of retries or business logic)
+            //       so activity id should be logged on this service and downstream service to uniquely map one request to another, having the same correlation id
+            //  - user is interested in client time difference with server time
+
             if (value.Key == "System.Net.Http.Request")
             {
                 var request = (HttpRequestMessage) value.Value.GetProperty("Request");
-                var timestamp = value.Value.GetProperty("Timestamp");//long
-                var requestId = value.Value.GetProperty("LoggingRequestId");//Guid
+                var timestamp = value.Value.GetProperty("Timestamp"); //long
 
-
-                if (request != null && timestamp != null && requestId != null)
+                if (request != null && timestamp != null)
                 {
-                    if (logger.IsEnabled(LogLevel.Information) && filter.Validate(request.RequestUri))
+                    if (filter.Validate(request.RequestUri))
                     {
-                        var span = new Span(new SpanContext(requestId.ToString()), "Outgoing request", (long)timestamp, SpanState.Current)
-                            .SetTags(request);
-                        injectContext(span.GetContext(), request);
-                        request.Properties["span"] = span;
-                        Task.Run(() =>
+                        //we start new activity here: it's parent will be Current.Id, it's Id will be generated
+                        //new Id will become parent of incoming request on downstream service.
+                        //new Id may be logged by user in activity starting/stopping event
+                        //We should set Activity.Current to new activity
+                        var activity = new Activity("Outgoing request")
+                            .WithTag("Uri", request.RequestUri.ToString())
+                            .WithTag("Method", request.Method.ToString())
+                            .WithTag("ParentId", Activity.Current.Id);
+                        activity.Start(DateTimeStopwatch.GetTime((long)timestamp));
+
+                        request.Headers.Add(headerMap.ActivityIdHeaderName, activity.Id);
+                        foreach (var baggage in activity.Baggage)
                         {
-                            using (logger.StartSpan(span))
-                            {
-                                logger.LogInformation("Start");
-                            }
-                        });
+                            request.Headers.Add(headerMap.GetHeaderName(baggage.Key), baggage.Value);
+                        }
+
+                        request.Properties["activity"] = activity;
+                        //this code may run synchronously
+                        //Let's restore parent operation context so next HttpClient call will inherit proper context
+                        Activity.SetCurrent(activity.Parent);
                     }
                 }
             }
             else if (value.Key == "System.Net.Http.Response")
             {
                 var response = (HttpResponseMessage) value.Value.GetProperty("Response");
+                var timestamp = value.Value.GetProperty("TimeStamp"); //long
+
                 if (response != null)
                 {
-                    if (logger.IsEnabled(LogLevel.Information) && filter.Validate(response.RequestMessage.RequestUri))
+                    if (filter.Validate(response.RequestMessage.RequestUri))
                     {
-                        var span = response.RequestMessage.Properties["span"] as Span;
-                        span.SetTags(response);
-                        Task.Run(() =>
+                        var activity = response.RequestMessage.Properties["activity"] as Activity;
+                        Activity.SetCurrent(activity);
+                        if (activity != null)
                         {
-                            using (logger.StartSpan(span))
-                                logger.LogInformation("Stop");
-                        });
+                            activity.WithTag("StatusCode", response.StatusCode.ToString());
+                            activity.Stop(DateTimeStopwatch.GetTime((long)timestamp) - activity.StartTime);
+                        }
                     }
                 }
             }
@@ -76,20 +91,6 @@ namespace Microsoft.Extensions.Correlation.Internal
         public void OnCompleted(){}
 
         public void OnError(Exception error){}
-
-        private void injectContext(SpanContext spanContext, HttpRequestMessage request)
-        {
-            //There could be the case when there is no correlation Id
-            //e.g. request is executed in app startup or in background, outside of any incoming request scope 
-            if (spanContext.CorrelationId != null)
-                request.Headers.Add(CorrelationHttpHeaders.CorrelationIdHeaderName, spanContext.CorrelationId);
-
-            request.Headers.Add(CorrelationHttpHeaders.SpanIdHeaderName, spanContext.SpanId);
-            foreach (var kv in spanContext.Baggage)
-            {
-                request.Headers.Add(CorrelationHttpHeaders.BaggagePrefix + kv.Key, kv.Value);
-            }
-        }
     }
 
     internal static class PropertyExtensions
@@ -97,23 +98,6 @@ namespace Microsoft.Extensions.Correlation.Internal
         public static object GetProperty(this object _this, string propertyName)
         {
             return _this.GetType().GetTypeInfo().GetDeclaredProperty(propertyName)?.GetValue(_this);
-        }
-    }
-
-    internal static class SpanExtenstions
-    {
-        public static Span SetTags(this Span span, HttpRequestMessage request)
-        {
-            span.Tags["Uri"] = request.RequestUri.ToString();
-            span.Tags["Method"] = request.Method.ToString();
-            return span;
-        }
-
-        public static Span SetTags(this Span span, HttpResponseMessage response)
-        {
-            span.Tags["StatusCode"] = response.StatusCode.ToString();
-            span.Tags["Duration"] = $"{TimeSpan.FromTicks(Stopwatch.GetTimestamp() -  span.PreciseStartTimestamp).TotalMilliseconds}ms";
-            return span;
         }
     }
 }

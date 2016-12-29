@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 
 namespace SampleApp.Controllers
 {
-    [MyFilter]
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> logger;

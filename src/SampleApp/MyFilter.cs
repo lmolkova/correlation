@@ -1,30 +1,24 @@
-﻿using System.Diagnostics.Context;
+﻿using System.Diagnostics.Activity;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace SampleApp
 {
-    public class MyFilter : ActionFilterAttribute
+    internal class SamplingMiddleware
     {
-        public override void OnActionExecuting(ActionExecutingContext context)
-        {
-            //add custom tage
-            SpanState.Current.Tags["userid"] = "set user";
+        private readonly RequestDelegate next;
 
-            //add custom context
-            bool sampled = isSampled(context.HttpContext.Request);
-            SpanState.Current.SetBaggageItem("isSampled", sampled.ToString());
+        public SamplingMiddleware(RequestDelegate next)
+        {
+            this.next = next;
         }
 
-        public override void OnActionExecuted(ActionExecutedContext context)
+        public Task Invoke(HttpContext context)
         {
-        }
-
-        //this is an example of custom context
-        private bool isSampled(HttpRequest request)
-        {
-            //decide if request should be sampled or not
-            return true;
+            var activity = new Activity("sampling");
+            activity.WithBaggage("isSampled", bool.TrueString);
+            Activity.SetCurrent(activity);
+            return next.Invoke(context);
         }
     }
 }

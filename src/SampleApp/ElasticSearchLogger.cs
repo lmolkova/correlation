@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Context;
+using System.Diagnostics.Activity;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using Nest;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
@@ -56,13 +57,12 @@ namespace SampleApp
         {
             if (!initialized) return;
 
-            var currentSpan = SpanState.Current;
-
+            var activity = Activity.Current;
             //this is an example of custom context propagation
-            string isSampledStr;
 
-            if (currentSpan != null && currentSpan.TryGetBaggageItem("isSampled", out isSampledStr))
+            if (activity != null)
             {
+                var isSampledStr = activity.GetBaggageItem("isSampled");
                 if (isSampledStr != bool.TrueString)
                     return;
             }
@@ -77,11 +77,11 @@ namespace SampleApp
                 ["CategoryName"] = categoryName
             };
 
-            if (currentSpan != null)
+            if (activity != null)
             {
-                document["OperationName"] = currentSpan.OperationName;
-                document["OperationStarted"] = currentSpan.StartTimestamp;
-                foreach (var kv in currentSpan.GetProperties())
+                document["OperationName"] = activity.OperationName;
+                document["OperationStarted"] = activity.StartTime;
+                foreach (var kv in activity.GetProperties())
                     document[kv.Key] = kv.Value;
             }
 
@@ -93,7 +93,6 @@ namespace SampleApp
             return true;
         }
 
-        //logger could use SpanState.Current or keep the last Span it received in static AsyncLocal variable
         public IDisposable BeginScope<TState>(TState state)
         {
             return new NoopScope();
@@ -105,5 +104,18 @@ namespace SampleApp
             {
             }
         }
+    }
+
+    public static class SpanExtenstions
+    {
+        public static IEnumerable<KeyValuePair<string, string>> GetProperties(this Activity span)
+        {
+            var result = new List<KeyValuePair<string, string>>();
+            result.AddRange(span.Baggage);
+            result.AddRange(span.Tags);
+            result.Add(new KeyValuePair<string, string>("Id", span.Id));
+            return result;
+        }
+
     }
 }

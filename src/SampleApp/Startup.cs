@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System.Diagnostics.Activity;
+using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Ext;
 using Microsoft.AspNetCore.Hosting;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Correlation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
 
 namespace SampleApp
 {
@@ -33,12 +35,16 @@ namespace SampleApp
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory, IApplicationLifetime applicationLifetime)
         {
-            loggerFactory
+            loggerFactory.WithFilter(new FilterLoggerSettings
+                {
+                    {"Microsoft", LogLevel.Warning},
+                })
                 .AddConsole(Configuration.GetSection("Logging"))
                 .AddDebug()
                 .AddElasicSearch();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -48,18 +54,26 @@ namespace SampleApp
             {
                 app.UseExceptionHandler("/Home/Error");
             }
-
             app.UseStaticFiles();
 
+            app.UseMiddleware<SamplingMiddleware>();
             app.UseCorrelationInstrumentation();
+            var logger = loggerFactory.CreateLogger("Activity");
+            Activity.ActivityStarting += () =>
+            {
+                logger.LogInformation($"{Activity.Current.OperationName} started");
+            };
+            Activity.ActivityStopping += () =>
+            {
+                logger.LogInformation($"{Activity.Current.OperationName} completed");
+            };
+
             app.UseMvc(routes =>
             {
                 routes.MapRoute(
                     name: "default",
                     template: "{controller=Home}/{action=Index}/{id?}");
             });
-
-            loggerFactory.CreateLogger("123").LogInformation("start");
         }
     }
 }
