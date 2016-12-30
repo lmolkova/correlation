@@ -7,8 +7,8 @@ namespace System.Diagnostics.Activity
     public class Activity : IDisposable
     {
         public string OperationName { get; }
-        public string Id { get;}
-        public DateTime StartTime { get; private set; }
+        public string Id { get; }
+        public DateTime StartTimeUtc { get; private set; }
         public TimeSpan Duration { get; private set; }
         public Activity Parent { get; }
         public IEnumerable<KeyValuePair<string, string>> Tags => _tags;
@@ -17,13 +17,13 @@ namespace System.Diagnostics.Activity
         public Activity(string operationName)
         {
             OperationName = operationName;
-            Id = GenerateId();
             Parent = Current;
+            Id = GenerateId();
 
             _tags = new LinkedList<KeyValuePair<string, string>>();
-            _baggage =  Parent?._baggage ?? new LinkedList<KeyValuePair<string, string>>();
+            _baggage = Parent?._baggage ?? new LinkedList<KeyValuePair<string, string>>();
 
-            StartTime = DateTime.UtcNow;
+            StartTimeUtc = DateTime.UtcNow;
             Duration = TimeSpan.Zero;
         }
 
@@ -49,7 +49,7 @@ namespace System.Diagnostics.Activity
 
         public void Start(DateTime startTime)
         {
-            StartTime = startTime;
+            StartTimeUtc = startTime;
             SetCurrent(this);
             ActivityStarting?.Invoke();
         }
@@ -65,16 +65,16 @@ namespace System.Diagnostics.Activity
             }
         }
 
-        public static Activity Start(string operationName, DateTime startTime)
+        public static Activity Start(string operationName, DateTime startTimeUtc)
         {
             var activity = new Activity(operationName);
-            Start(activity, startTime);
+            Start(activity, startTimeUtc);
             return activity;
         }
 
-        public static void Start(Activity activity, DateTime startTime)
+        public static void Start(Activity activity, DateTime startTimeUtc)
         {
-            activity.Start(startTime);
+            activity.Start(startTimeUtc);
         }
 
         public static void Stop(Activity activity, TimeSpan duration)
@@ -84,32 +84,10 @@ namespace System.Diagnostics.Activity
 
         public void Dispose()
         {
-            Stop(DateTime.UtcNow - StartTime);
+            Stop(DateTime.UtcNow - StartTimeUtc);
         }
 
         public static Activity Current => _current.Value;
-
-        /// <summary>
-        /// Generates unique id for request
-        /// </summary>
-        /// <returns></returns>
-        private string GenerateId()
-        {
-            return Guid.NewGuid().ToString();
-            //if id is incremental:
-            // - multiple instances of the same service will produce non-unique ids
-            // - after restart, service will start generating ids from 0, so they will repeat
-        }
-
-        public static bool CurrentEnabled { get; set; } = true;
-
-        public static void SetCurrent(Activity newActivity)
-        {
-            if (CurrentEnabled)
-            {
-                _current.Value = newActivity;
-            }
-        }
 
         //We expect users to be interested only about activity start and stop events: such events may be logged
         //Current activity could be changed without being started or stopped
@@ -132,6 +110,52 @@ namespace System.Diagnostics.Activity
             return $"operation: {OperationName}, Id={Id}, context: {{{dictionaryToString(Baggage)}}}, tags: {{{dictionaryToString(Tags)}}}";
         }
 
+        public static bool CurrentEnabled { get; set; } = true;
+
+        public static void SetCurrent(Activity newActivity)
+        {
+            if (CurrentEnabled)
+            {
+                _current.Value = newActivity;
+            }
+        }
+
+        #region private 
+        private string GenerateId()
+        {
+            string ret;
+            if (Parent != null)
+#if DEBUG 
+                ret = Parent.Id + "/" + OperationName + "_" + Interlocked.Increment(ref Parent._currentChildId);
+#else           // To keep things short, we drop the operation name 
+                ret = Parent.Id + "/" + Interlocked.Increment(ref Parent._currentChildId);
+#endif
+            else
+            {
+                if (_uniqPrefix == null)
+                {
+                    // Here we make an ID to represent the Process/AppDomain.   Ideally we use process ID but 
+                    // it is unclear if we have that ID handy.   Currently we use low bits of high freq tick 
+                    // as a unique random number (which is not bad, but loses randomness for startup scenarios).  
+                    int uniqNum = (int)Stopwatch.GetTimestamp();
+                    string uniqPrefix = $"//{Environment.MachineName}_{uniqNum:x}/";
+                    Interlocked.CompareExchange(ref _uniqPrefix, uniqPrefix, null);
+                }
+#if DEBUG
+                ret = _uniqPrefix + OperationName + "_" + Interlocked.Increment(ref _currentRootId);
+#else           // To keep things short, we drop the operation name 
+                ret = _uniqPrefix + Interlocked.Increment(ref _currentRootId);
+#endif 
+            }
+            // Useful place to place a conditional breakpoint.  
+            return ret;
+        }
+
+        // Used to generate an ID 
+        int _currentChildId;            // A unique number for all children of this activity.  
+        static int _currentRootId;      // A unique number inside the appdomain.
+        static string _uniqPrefix;      // A unique prefix that represents the machine/process/appdomain
+
         private readonly LinkedList<KeyValuePair<string, string>> _tags;
         private readonly LinkedList<KeyValuePair<string, string>> _baggage;
         private static readonly AsyncLocal<Activity> _current = new AsyncLocal<Activity>();
@@ -149,5 +173,7 @@ namespace System.Diagnostics.Activity
                 sb.Remove(sb.Length - 1, 1);
             return sb.ToString();
         }
+
+        #endregion // private
     }
 }
