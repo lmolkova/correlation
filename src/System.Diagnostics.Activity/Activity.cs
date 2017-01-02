@@ -2,8 +2,9 @@
 using System.Text;
 using System.Threading;
 
-namespace System.Diagnostics.Activity
+namespace System.Diagnostics
 {
+    // TODO: Consider renameing to DiagnosticActivity 
     public class Activity : IDisposable
     {
         public string OperationName { get; }

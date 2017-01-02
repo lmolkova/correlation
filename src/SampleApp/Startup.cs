@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.Activity;
+﻿using System.Diagnostics;
 using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Ext;

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Activity;
+using System.Diagnostics;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using Nest;
