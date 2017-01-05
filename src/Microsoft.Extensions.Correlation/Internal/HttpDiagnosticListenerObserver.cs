@@ -13,12 +13,13 @@ namespace Microsoft.Extensions.Correlation.Internal
 {
     internal class HttpDiagnosticListenerObserver : IObserver<KeyValuePair<string, object>>
     {
-        private readonly EndpointFilter filter;
-        private readonly CorrelationConfigurationOptions.HeaderOptions headerMap;
-        public HttpDiagnosticListenerObserver(EndpointFilter filter, CorrelationConfigurationOptions.HeaderOptions headerMap)
+        public HttpDiagnosticListenerObserver(DiagnosticListener listener)
         {
-            this.filter = filter;
-            this.headerMap = headerMap;
+            this.listener = listener;
+            requestFetcher = new PropertyFetcher("Request");
+            requestTimestampFetcher = new PropertyFetcher("Timestamp");
+            responseFetcher = new PropertyFetcher("Response");
+            responseTimestampFetcher = new PropertyFetcher("TimeStamp");
         }
 
         public void OnNext(KeyValuePair<string, object> value)
@@ -26,78 +27,137 @@ namespace Microsoft.Extensions.Correlation.Internal
             if (value.Value == null)
                 return;
 
-            //Request and Response events handling id done for 2 reasons
-            //1. inject headers
-            //2. We need to notify user about outgoing request;  user may want to log outgoing requests because 
-            //  - downstream service logs may not be available (it's external dependency or not instumented service)
-            //  - user may want to create visualization for operation flow and need parent-child relationship between requests:
-            //       e.g. service calls other service multiple times within the same operation (because of retries or business logic)
-            //       so activity id should be logged on this service and downstream service to uniquely map one request to another, having the same correlation id
-            //  - user is interested in client time difference with server time
-
             if (value.Key == "System.Net.Http.Request")
             {
-                var request = (HttpRequestMessage) value.Value.GetProperty("Request");
-                var timestamp = value.Value.GetProperty("Timestamp"); //long
+                var request = (HttpRequestMessage)requestFetcher.Fetch(value.Value);
+                var timestamp = (long)requestTimestampFetcher.Fetch(value.Value);
 
-                if (request != null && timestamp != null)
+                if (request != null)
                 {
-                    if (filter.Validate(request.RequestUri))
+                    if (listener.IsEnabled(request.RequestUri.ToString()))
                     {
-                        //we start new activity here: it's parent will be Current.Id, it's Id will be generated
-                        //new Id will become parent of incoming request on downstream service.
-                        //new Id may be logged by user in activity starting/stopping event
-                        //We should set Activity.Current to new activity
-                        var activity = new Activity("Outgoing request")
-                            .WithTag("Uri", request.RequestUri.ToString())
-                            .WithTag("Method", request.Method.ToString())
-                            .WithTag("ParentId", Activity.Current.Id);
-                        activity.Start(DateTimeStopwatch.GetTime((long)timestamp));
+                        //we start new activity here
+                        var activity = new Activity("Http_Out")
+                            .WithStartTime(DateTimeStopwatch.GetTime(timestamp));
+                        listener.Start(activity, value.Value);
 
-                        request.Headers.Add(headerMap.ActivityIdHeaderName, activity.Id);
+                        // Attach our ID and Baggage to the outgoing Http Request.
+                        request.Headers.Add(HttpHeaderConstants.ActivityIdHeaderName, activity.Id);
                         foreach (var baggage in activity.Baggage)
                         {
-                            request.Headers.Add(headerMap.GetHeaderName(baggage.Key), baggage.Value);
+                            request.Headers.Add(baggage.Key, baggage.Value);
                         }
-
-                        request.Properties["activity"] = activity;
-                        //this code may run synchronously
-                        //Let's restore parent operation context so next HttpClient call will inherit proper context
-                        Activity.SetCurrent(activity.Parent);
+                        // TODO FIX NOW.
+                        // There seems to be a bug in the AsyncLocals where an AsyncLocal set 
+                        // in an async method 'leaks' into its caller (which is logically a
+                        // separate task.   For now we don't modify the current activity
+                        // That is we set it back to the parent agressively.  
+                        listener.Stop(activity, value.Value, DateTimeStopwatch.GetTime(timestamp));
                     }
                 }
             }
             else if (value.Key == "System.Net.Http.Response")
             {
-                var response = (HttpResponseMessage) value.Value.GetProperty("Response");
-                var timestamp = value.Value.GetProperty("TimeStamp"); //long
-
+                var response = (HttpResponseMessage)responseFetcher.Fetch(value.Value);
+                var timestamp = (long)responseTimestampFetcher.Fetch(value.Value);
                 if (response != null)
                 {
-                    if (filter.Validate(response.RequestMessage.RequestUri))
+                    if (listener.IsEnabled(response.RequestMessage.RequestUri.ToString()))
                     {
-                        var activity = response.RequestMessage.Properties["activity"] as Activity;
-                        Activity.SetCurrent(activity);
-                        if (activity != null)
-                        {
-                            activity.WithTag("StatusCode", response.StatusCode.ToString());
-                            activity.Stop(DateTimeStopwatch.GetTime((long)timestamp) - activity.StartTimeUtc);
-                        }
+                        // TODO FIX NOW 
+                        // We want to put the activity back to before the Outgoing http request activity
+                        // but we already did this agressively above to work around a bug in the 
+                        // async local implementation. 
+                        // listener.Stop(value.Value, DateTimeStopwatch.GetTime(timestamp));
                     }
                 }
             }
         }
 
-        public void OnCompleted(){}
+        public void OnCompleted() { }
 
-        public void OnError(Exception error){}
-    }
+        public void OnError(Exception error) { }
 
-    internal static class PropertyExtensions
-    {
-        public static object GetProperty(this object _this, string propertyName)
+        #region private
+       
+        private readonly DiagnosticListener listener;
+        private readonly PropertyFetcher requestFetcher;
+        private readonly PropertyFetcher responseFetcher;
+        private readonly PropertyFetcher requestTimestampFetcher;
+        private readonly PropertyFetcher responseTimestampFetcher;
+
+        private class PropertyFetcher
         {
-            return _this.GetType().GetTypeInfo().GetDeclaredProperty(propertyName)?.GetValue(_this);
+            public PropertyFetcher(string propertyName)
+            {
+                this.propertyName = propertyName;
+            }
+
+            public object Fetch(object obj)
+            {
+                if (innerFetcher == null)
+                {
+                    innerFetcher = PropertyFetch.FetcherForProperty(obj.GetType().GetTypeInfo().GetDeclaredProperty(propertyName));
+                }
+
+                return innerFetcher?.Fetch(obj);
+            }
+
+            #region private
+
+            private PropertyFetch innerFetcher;
+            private readonly string propertyName;
+            
+            //see https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/System/Diagnostics/DiagnosticSourceEventSource.cs
+            class PropertyFetch
+            {
+                /// <summary>
+                /// Create a property fetcher from a .NET Reflection PropertyInfo class that
+                /// represents a property of a particular type.  
+                /// </summary>
+                public static PropertyFetch FetcherForProperty(PropertyInfo propertyInfo)
+                {
+                    if (propertyInfo == null)
+                        return new PropertyFetch(); // returns null on any fetch.
+
+                    var typedPropertyFetcher = typeof(TypedFetchProperty<,>);
+                    var instantiatedTypedPropertyFetcher = typedPropertyFetcher.GetTypeInfo().MakeGenericType(
+                        propertyInfo.DeclaringType, propertyInfo.PropertyType);
+                    return (PropertyFetch) Activator.CreateInstance(instantiatedTypedPropertyFetcher, propertyInfo);
+                }
+
+                /// <summary>
+                /// Given an object, fetch the property that this propertyFech represents. 
+                /// </summary>
+                public virtual object Fetch(object obj)
+                {
+                    return null;
+                }
+
+                #region private 
+
+                private class TypedFetchProperty<TObject, TProperty> : PropertyFetch
+                {
+                    public TypedFetchProperty(PropertyInfo property)
+                    {
+                        _propertyFetch =
+                            (Func<TObject, TProperty>)
+                            property.GetMethod.CreateDelegate(typeof(Func<TObject, TProperty>));
+                    }
+
+                    public override object Fetch(object obj)
+                    {
+                        return _propertyFetch((TObject) obj);
+                    }
+
+                    private readonly Func<TObject, TProperty> _propertyFetch;
+                }
+
+                #endregion
+            }
+
+            #endregion
         }
+        #endregion
     }
 }

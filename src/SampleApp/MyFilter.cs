@@ -15,9 +15,7 @@ namespace SampleApp
 
         public Task Invoke(HttpContext context)
         {
-            var activity = new Activity("sampling");
-            activity.WithBaggage("isSampled", bool.TrueString);
-            Activity.SetCurrent(activity);
+            Activity.Current?.WithBaggage("isSampled", bool.TrueString);
             return next.Invoke(context);
         }
     }

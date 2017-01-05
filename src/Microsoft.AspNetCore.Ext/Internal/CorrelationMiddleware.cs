@@ -1,52 +1,52 @@
-﻿using System.Diagnostics;
+using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Correlation;
+using System.Diagnostics;
 
 namespace Microsoft.AspNetCore.Ext.Internal
 {
     internal class CorrelationMiddleware
     {
+        private static readonly DiagnosticListener httpListener = new DiagnosticListener("Microsoft.AspNetCore.Http");
         private readonly RequestDelegate next;
-        private readonly CorrelationConfigurationOptions.HeaderOptions headerMap;
 
-        public CorrelationMiddleware(RequestDelegate next, CorrelationConfigurationOptions.HeaderOptions headerMap)
+        public CorrelationMiddleware(RequestDelegate next)
         {
             this.next = next;
-            this.headerMap = headerMap;
         }
 
         public async Task Invoke(HttpContext context)
         {
-            var activity = new Activity("Incoming request");
-            foreach (var header in context.Request.Headers)
+            if (httpListener.IsEnabled("Http_InStart"))
             {
-                if (header.Key == headerMap.ActivityIdHeaderName)
+                var activity = new Activity("Http_In");
+
+                // Transfer ID and baggage.  
+                foreach (var header in context.Request.Headers)
                 {
-                    activity.WithTag("ParentId", header.Value);
+                    if (header.Key == HttpHeaderConstants.ActivityIdHeaderName) // Check for x-ms-request-id
+                        activity.WithParentId(header.Value);
+                    else if (header.Key == HttpHeaderConstants.CorrelationIdHeaderName || header.Key.StartsWith(HttpHeaderConstants.BaggageHeaderPrefix))
+                        activity.WithBaggage(header.Key, header.Value);
                 }
-                else
+
+                // Start the activity represending this incomming HTTP request.  
+                httpListener.Start(activity, context);
+                if (!context.Request.Headers.ContainsKey(HttpHeaderConstants.CorrelationIdHeaderName))
+                    activity.WithBaggage(HttpHeaderConstants.CorrelationIdHeaderName, Guid.NewGuid().ToString());
+
+                try
                 {
-                    var baggageKey = headerMap.GetBaggageKey(header.Key);
-                    if (baggageKey != null)
-                        activity.WithBaggage(baggageKey, header.Value);
+                    await next.Invoke(context);
+                }
+                finally
+                {
+                    httpListener.Stop(activity, context);
                 }
             }
-
-            if (!context.Request.Headers.Keys.Contains(headerMap.CorrelationIdHeaderName))
-                activity.WithBaggage(headerMap.GetBaggageKey(headerMap.CorrelationIdHeaderName), activity.Id);
-
-            activity.WithTag("Path", context.Request.Path)
-                .WithTag("Method", context.Request.Method)
-                .WithTag("RequestId", context.TraceIdentifier)
-                .Start(DateTimeStopwatch.GetTime());
-            //we start activity here with new Id and parentId from request header (if any)
-            //there might be the case when user created his own activity with some baggage in custom middleware
-            //so this activity has parent (which will be null in all cases except above one)
-            using (activity)
-            {
+            else
                 await next.Invoke(context);
-            }
         }
     }
 }
