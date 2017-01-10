@@ -3,9 +3,9 @@ One of the common problems in microservices development is ability to trace requ
 
 Typical scenarios include:
 
-	1. Tracing error received by user
-	2. Performance analysis and optimization: whole stack of request needs to be analyzed
-	3. A/B testing: metrics for requests with experimental features should be distinguished and compared to 'production' data.
+1. Tracing error received by user
+2. Performance analysis and optimization: whole stack of request needs to be analyzed
+3. A/B testing: metrics for requests with experimental features should be distinguished and compared to 'production' data.
 
 Those scenarios require every request to have additional correlation information. This standard describes minimal set of identifiers to be used and their format in HTTP communication.
 
