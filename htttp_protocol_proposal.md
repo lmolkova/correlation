@@ -2,6 +2,7 @@
 One of the common problems in microservices development is ability to trace request flow from client (application, browser) through all the services involved in processing.
 
 Typical scenarios include:
+
 	1. Tracing error received by user
 	2. Performance analysis and optimization: whole stack of request needs to be analyzed
 	3. A/B testing: metrics for requests with experimental features should be distinguished and compared to 'production' data.
