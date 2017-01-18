@@ -12,10 +12,10 @@ Those scenarios require every request to have additional correlation information
 # HTTP Protocol proposal
 Following correlation identifiers  should be passed in HTTP request headers:
 
-| Header name           |  Format                              | Description                                                                                    |
-| ----------------------| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Correlation-Context   | Comma separated list of properties: Id=\<correlation-id\>, key1=value1, key2=value2 | Identifies operation (transaction, workflow) context, which may involve multiple services interaction. Every property should be propagated to all services involved in operation processing |
-| Caller-Context       | Comma separated list of properties: Id=\<request-id\>, key3=value3, key4=value4  | Identifies particular caller request context, which is propagated from caller to callee only |
+| Header name           |  Format                              | Description                                                       |
+| ----------------------| ------------------------------------ | ----------------------------------------------------------------- |
+| Correlation-Context   | Comma separated list of key-value pairs: Id=\<correlation-id\>, key1=value1, key2=value2 | Identifies operation (transaction, workflow) context, which may involve multiple services interaction. Every property should be propagated to all services involved in operation processing |
+| Caller-Context       | Comma separated list of key-value pairs: Id=\<request-id\>, key3=value3, key4=value4  | Identifies particular caller request context, which is propagated from caller to callee only |
 
 # Examples
 
