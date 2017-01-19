@@ -89,20 +89,20 @@ Let's also imagine user does not provide any context with it's request.
 
 1. A: receives request it scans through it's headers and does not find `Request-Id`.
 2. A: generates a new one: 'abc' (it's not long enough, but helps to understand the scenario).
-3. A: adds extra property to `Correlation-Context`: sampled=true
+3. A: adds extra property to `Correlation-Context: sampled=true`
 4. A: logs event that operation was started along with Request-Id and `Correlation-Context`
 5. A: makes request to service-b:
-    a. adds extra property to `Request-Context`: storageId=1
+    a. adds extra property to `Request-Context: storageId=1`
     b. generates new `Request-Id` by appending try number to the parent request id: abc.1
     c. logs that outgoing request is about to be sent with all the available context: `Request-Id`, `Correlation-Context` and `Request-Context`
     d. sends request to service-b
 6. B: service-b receives request
-7. B: scans through it's headers and finds `Request-Id` (abc.1), 'Correlation-Context`(sampled=true) and 'Request-Context` (storageId=1).
+7. B: scans through it's headers and finds `Request-Id: abc.1`, 'Correlation-Context: sampled=true` and 'Request-Context: storageId=1`.
 8. B: logs event that operation was started along with all available context
 9. B: makes request to service-c:
-    a. adds extra property to `Request-Context`: storageId=2
+    a. adds extra property to `Request-Context: storageId=2`
     b. generates new `Request-Id` by appending try number to the parent request id: abc.1.1
-    c. logs that outgoing request is about to be sent with all the available context: `Request-Id` (abc.1.1), `Correlation-Context` (sampled=true) and `Request-Context` (storageId=2)
+    c. logs that outgoing request is about to be sent with all the available context: `Request-Id: abc.1.1`, `Correlation-Context: sampled=true` and `Request-Context: storageId=2`
     d. sends request to service-c
 ...        
 
