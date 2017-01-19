@@ -21,7 +21,7 @@ This standard describes context and it's format in HTTP communication.
 ## Request-Id
 `Request-Id` uniquely identifies every HTTP request involved in operation processing. 
 
-Request-Id is generated on the caller side and passed to callee. Implementation should expect to receive `Request-Id` in header or MUST generate one if it was not provided (see [Root id](#root-id) for generation considerations).
+Request-Id is generated on the caller side and passed to callee. Implementation should expect to receive `Request-Id` in header or MUST generate one if it was not provided (see [Root Parent Id Generation](#root-parent-id-generation) for generation considerations).
 When outgoing request is made, implementation MUST generate unique `Request-Id` header and pass it to downstream service (supporting this protocol). 
 
 Implementations SHOULD use hierarchical structure for the Id:
@@ -40,17 +40,17 @@ It is essential that 'incoming' and 'outgoing' Request-Ids are included in the t
 ### Formatting hierarchical `Request-Id`
 `Request-Id` has following schema:
 
-parentId/localId
+parentId.localId
 
 ParentId is Request-Id passed from upstream service (or generated if was not provided), it may have hierarchical structure itself.
-LocalId is generated to identify internal operation. It may have hierarchical structure itself considering service or protocol implementation may split operation to multiple activities.
+LocalId is generated to identify internal operation. It may have hierarchical structure considering service or protocol implementation may split operation to multiple activities.
 - It MUST be unique for every outgoing HTTP request sent while processing the incoming request. 
 - It SHOULD be small to avoid `Request-Id` overflow
 - If appending localId to `Request-Id` would cause it to exceed length limit, implementation MUST keep the root node in the `Request-Id` and do it's best effort to generate unique suffix to root id.
 
-Parent and local Ids are separated with "/" delimiter.
+Parent and local Ids are separated with "." delimiter.
 
-#### Root id
+#### Root Parent Id Generation
 If `Request-Id` is not provided, it indicates that it's first [instrumented] service to process the operation.
 Implementation MUST generate sufficiently large random identifier: e.g. GUID, random 64bit number.
 
@@ -93,16 +93,16 @@ Let's also imagine user does not provide any context with it's request.
 4. A: logs event that operation was started along with Request-Id and `Correlation-Context`
 5. A: makes request to service-b:
     a. adds extra property to `Request-Context`: storageId=1
-    b. generates new `Request-Id` by appending try number to the parent request id: abc/1
+    b. generates new `Request-Id` by appending try number to the parent request id: abc.1
     c. logs that outgoing request is about to be sent with all the available context: `Request-Id`, `Correlation-Context` and `Request-Context`
     d. sends request to service-b
 6. B: service-b receives request
-7. B: scans through it's headers and finds `Request-Id` (abc/1), 'Correlation-Context`(sampled=true) and 'Request-Context` (storageId=1).
+7. B: scans through it's headers and finds `Request-Id` (abc.1), 'Correlation-Context`(sampled=true) and 'Request-Context` (storageId=1).
 8. B: logs event that operation was started along with all available context
 9. B: makes request to service-c:
     a. adds extra property to `Request-Context`: storageId=2
-    b. generates new `Request-Id` by appending try number to the parent request id: abc/1/1
-    c. logs that outgoing request is about to be sent with all the available context: `Request-Id` (abc/1/1), `Correlation-Context` (sampled=true) and `Request-Context` (storageId=2)
+    b. generates new `Request-Id` by appending try number to the parent request id: abc.1.1
+    c. logs that outgoing request is about to be sent with all the available context: `Request-Id` (abc.1.1), `Correlation-Context` (sampled=true) and `Request-Context` (storageId=2)
     d. sends request to service-c
 ...        
 
