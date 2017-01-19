@@ -14,8 +14,8 @@ This standard describes context and it's format in HTTP communication.
 # HTTP Protocol proposal
 | Header name           |  Format    | Description |
 | ----------------------| ---------- | ---------- |
-| Request-Id            | Required. String | Uniquely identifier for every HTTP request involved in operation processing |
-| Correlation-Context   | Optional. Comma separated list of key-value pairs: key1=value1, key2=value2 | Operation context which is propagated accross all services involved in operation processing |
+| Request-Id            | Required. String | Unique identifier for every HTTP request involved in operation processing |
+| Correlation-Context   | Optional. Comma separated list of key-value pairs: key1=value1, key2=value2 | Operation context which is propagated across all services involved in operation processing |
 | Request-Context       | Optional. Comma separated list of key-value pairs: key3=value3, key4=value4 | Context which is propagated from caller to immediate receiver only | 
 
 ## Request-Id
@@ -25,7 +25,7 @@ Request-Id is generated on the caller side and passed to callee. Implementation 
 When outgoing request is made, implementation MUST generate unique `Request-Id` header and pass it to downstream service (supporting this protocol). 
 
 Implementations SHOULD use hierarchical structure for the Id:
-If Request-Id is provided from upstream service, implemetation SHOULD append small id preceeded with sepratator and pass it to downstream service, making sure every outgoing request has different suffix.
+If Request-Id is provided from upstream service, implementation SHOULD append small id preceded with separator and pass it to downstream service, making sure every outgoing request has different suffix.
 Thus, Request-Id has path structure and the root node serve as single correlation id, common for all requests involved in operation processing and implementations are ENCOURAGED to follow this approach. 
 
 If implementation chooses not to follow this recommendation, it MUST ensure
