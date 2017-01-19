@@ -4,41 +4,107 @@ One of the common problems in microservices development is ability to trace requ
 Typical scenarios include:
 
 1. Tracing error received by user
-2. Performance analysis and optimization: whole stack of request needs to be analyzed
+2. Performance analysis and optimization: whole stack of request needs to be analyzed to find where performance issues come from
 3. A/B testing: metrics for requests with experimental features should be distinguished and compared to 'production' data.
 
-Those scenarios require every request to have additional correlation information. This standard describes minimal set of identifiers to be used and their format in HTTP communication.
+These scenarios require every request to carry additional context and services to enrich their telemetry events with this context, so it would possible to correlate telemetry from all services involved in operation processing.
+
+This standard describes context and it's format in HTTP communication.
 
 # HTTP Protocol proposal
-Following correlation identifiers  should be passed in HTTP request headers:
+| Header name           |  Format    | Description |
+| ----------------------| ---------- | ---------- |
+| Request-Id            | Required. String | Uniquely identifier for every HTTP request involved in operation processing |
+| Correlation-Context   | Optional. Comma separated list of key-value pairs: key1=value1, key2=value2 | Operation context which is propagated accross all services involved in operation processing |
+| Request-Context       | Optional. Comma separated list of key-value pairs: key3=value3, key4=value4 | Context which is propagated from caller to immediate receiver only | 
 
-| Header name           |  Format                              | Description                                                       |
-| ----------------------| ------------------------------------ | ----------------------------------------------------------------- |
-| Correlation-Context   | Comma separated list of key-value pairs: Id=\<correlation-id\>, key1=value1, key2=value2 | Identifies operation (transaction, workflow) context, which may involve multiple services interaction. Every property should be propagated to all services involved in operation processing |
-| Caller-Context       | Comma separated list of key-value pairs: Id=\<request-id\>, key3=value3, key4=value4  | Identifies particular caller request context, which is propagated from caller to callee only |
+## Request-Id
+`Request-Id` uniquely identifies every HTTP request involved in operation processing. 
+
+Request-Id is generated on the caller side and passed to callee. Implementation should expect to receive `Request-Id` in header or MUST generate one if it was not provided (see [Root id](#root-id) for generation considerations).
+When outgoing request is made, implementation MUST generate unique `Request-Id` header and pass it to downstream service (supporting this protocol). 
+
+Implementations SHOULD use hierarchical structure for the Id:
+If Request-Id is provided from upstream service, implemetation SHOULD append small id preceeded with sepratator and pass it to downstream service, making sure every outgoing request has different suffix.
+Thus, Request-Id has path structure and the root node serve as single correlation id, common for all requests involved in operation processing and implementations are ENCOURAGED to follow this approach. 
+
+If implementation chooses not to follow this recommendation, it MUST ensure
+1. It provides additional property in `Correlation-Context` serving as single unique identifier of the whole operation
+2. `Request-Id` is unique for every outgoing request made in scope of the same operation
+
+It is essential that 'incoming' and 'outgoing' Request-Ids are included in the telemetry events, so implementation of this protocol should ensure that it's possible to access the context and request-ids in particular.
+
+## Format
+`Request-Id` is a string up to 256 bytes in length.
+
+### Formatting hierarchical `Request-Id`
+`Request-Id` has following schema:
+
+parentId/localId
+
+ParentId is Request-Id passed from upstream service (or generated if was not provided), it may have hierarchical structure itself.
+LocalId is generated to identify internal operation. It may have hierarchical structure itself considering service or protocol implementation may split operation to multiple activities.
+- It MUST be unique for every outgoing HTTP request sent while processing the incoming request. 
+- It SHOULD be small to avoid `Request-Id` overflow
+- If appending localId to `Request-Id` would cause it to exceed length limit, implementation MUST keep the root node in the `Request-Id` and do it's best effort to generate unique suffix to root id.
+
+Parent and local Ids are separated with "/" delimiter.
+
+#### Root id
+If `Request-Id` is not provided, it indicates that it's first [instrumented] service to process the operation.
+Implementation MUST generate sufficiently large random identifier: e.g. GUID, random 64bit number.
+
+Same considerations are applied to client applications making HTTP requests and generating root request id.
+
+## Correlation-Context
+Identifies context of logical operation (transaction, workflow). Operation may involve multiple services interaction and the context should be propagated to all services involved in operation processing.
+Every service involved in operation processing may add it's own correlation-context properties.
+Correlation-Context is optional.
+
+### Format
+Correlation-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
+
+`Correlation-Context: key1=value1, key2=value2`
+
+## Request-Context
+Identifies caller request context, which is propagated from caller to callee only. Upon reception a request with Request-Context, receiver may use this context to enrich telemetry events, but not propagate it to it's children: downstream services requests.
+Though, receiver may propagate it's own request-context.
+
+### Format
+Request-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
+
+`Request-Context: key1=value1, key2=value2`
+
+## HTTP limitations
+- [HTTP 1.1 RFC](https://tools.ietf.org/html/rfc2616)
+- [HTTP Header encoding RFC](https://tools.ietf.org/html/rfc5987)
+- Practically HTTP header size is limited to several kilobytes (depending on a web server)
 
 # Examples
+Let's consider three services: service-a, service-b and service-c. User calls service-a, which calls service-b which in its turn calls service-c.
 
-Let's consider two services: service-a and service-b. User calls service-a, which calls service-b to fulfill user request.
-## Correlation Id
-Having single correlation-id attached to every request and log record would let us distinguish all information related to the operation.
-Correlation id is passed along with every request in `Correlation-Context` with key `Id`.
+`User -> service-a -> service-b -> service-c`
 
-## Request Id
-In the real world case, this request may be retried several times or service-a business logic may require multiple calls to service-b.
+Let's also imagine user does not provide any context with it's request.
 
-E.g. service-a tried to call service-b and request timed out and was retried. Logs from service-b for particular correlation-id would contain records for all retries and it would not be possible to distinguish particular request based on correlation id only. So we need to have another identifier, unique for every request, let's call it request-id.
-
-We also need to be able to map incoming call on service-b to outgoing call on service-a, which implies that request-id for service-b should be generated and logged on caller (service-a) side.
-
-Request id only make sense to immediate receiver of request and passed in `Caller-Context` with key `Id`.
-
-## Custom identifiers
-Some application/tracing system may require additional identifiers. 
-E.g. ApplicationInsights usage model require each service to write telemetry data to its own AppInsights resource and therefore resource identifier of the caller is passed to downstream service. Following this proposal, custom property of `Caller-Context` should be used for this purpose.
-
-[Zipkin](http://zipkin.io/) distributed system uses custom flags to control sampling and pass feature flags to downstream services. Sampling requires the top most service to decide whether the operation should be sampled or not and other services processing it should follow this decision to ensure request is either fully logged or not logged at all. Thus, sampling flag must be passed in `Correlation-Context`.
-
+1. A: receives request it scans through it's headers and does not find `Request-Id`.
+2. A: generates a new one: 'abc' (it's not long enough, but helps to understand the scenario).
+3. A: adds extra property to `Correlation-Context`: sampled=true
+4. A: logs event that operation was started along with Request-Id and `Correlation-Context`
+5. A: makes request to service-b:
+    a. adds extra property to `Request-Context`: storageId=1
+    b. generates new `Request-Id` by appending try number to the parent request id: abc/1
+    c. logs that outgoing request is about to be sent with all the available context: `Request-Id`, `Correlation-Context` and `Request-Context`
+    d. sends request to service-b
+6. B: service-b receives request
+7. B: scans through it's headers and finds `Request-Id` (abc/1), 'Correlation-Context`(sampled=true) and 'Request-Context` (storageId=1).
+8. B: logs event that operation was started along with all available context
+9. B: makes request to service-c:
+    a. adds extra property to `Request-Context`: storageId=2
+    b. generates new `Request-Id` by appending try number to the parent request id: abc/1/1
+    c. logs that outgoing request is about to be sent with all the available context: `Request-Id` (abc/1/1), `Correlation-Context` (sampled=true) and `Request-Context` (storageId=2)
+    d. sends request to service-c
+...        
 
 # Industry standards
 - [Google Dapper tracing system](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36356.pdf)
