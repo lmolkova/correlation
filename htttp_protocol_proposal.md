@@ -16,7 +16,8 @@ This standard describes context and it's format in HTTP communication.
 | ----------------------| ---------- | ---------- |
 | Request-Id            | Required. String | Unique identifier for every HTTP request involved in operation processing |
 | Correlation-Context   | Optional. Comma separated list of key-value pairs: key1=value1, key2=value2 | Operation context which is propagated across all services involved in operation processing |
-| Request-Context       | Optional. Comma separated list of key-value pairs: key3=value3, key4=value4 | Context which is propagated from caller to immediate receiver only | 
+| Request-Context       | Optional **request** header. Comma separated list of key-value pairs: key3=value3, key4=value4 | Context which is passed from caller in request to callee  and **not** propagated further | 
+| Response-Context      | Optional **response** header. Comma separated list of key-value pairs: key5=value5, key6=value6 | Context which is passed from callee in response to caller request and **not** propagated further | 
 
 ## Request-Id
 `Request-Id` uniquely identifies every HTTP request involved in operation processing. 
@@ -67,17 +68,24 @@ Correlation-Context is represented as comma separated list of key value pairs, w
 `Correlation-Context: key1=value1, key2=value2`
 
 ## Request-Context
-Identifies caller request context, which is propagated from caller to callee only. Upon reception a request with Request-Context, receiver may use this context to enrich telemetry events, but not propagate it to it's children: downstream services requests.
-Though, receiver may propagate it's own request-context.
+Describes caller request context, which caller may optionnaly pass when sends request to downstream service. Upon reception a request with Request-Context, receiver may use this context to enrich telemetry events, but not propagate it to it's children: downstream services requests. Though, receiver may propagate it's own request-context.
 
 ### Format
 Request-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
 
 `Request-Context: key1=value1, key2=value2`
 
-## HTTP limitations
-- [HTTP 1.1 RFC](https://tools.ietf.org/html/rfc2616)
-- [HTTP Header encoding RFC](https://tools.ietf.org/html/rfc5987)
+## Response-Context
+Describes receiver response context, which is receiver may optionally include in the response to caller request. Upon reception a response with Response-Context, caller may use this context to enrich telemetry events, but not propagate it to upstream service responses. Though, receiver may send it's own response-context to upstream services.
+
+### Format
+Response-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
+
+`Response-Context: key1=value1, key2=value2`
+
+## HTTP Guidelines and Limitations
+- [HTTP 1.1 RFC2616](https://tools.ietf.org/html/rfc2616)
+- [HTTP Header encoding RFC5987](https://tools.ietf.org/html/rfc5987)
 - Practically HTTP header size is limited to several kilobytes (depending on a web server)
 
 # Examples
@@ -92,19 +100,28 @@ Let's also imagine user does not provide any context with it's request.
 3. A: adds extra property to `Correlation-Context: sampled=true`
 4. A: logs event that operation was started along with Request-Id and `Correlation-Context`
 5. A: makes request to service-b:
-    a. adds extra property to `Request-Context: storageId=1`
-    b. generates new `Request-Id` by appending try number to the parent request id: abc.1
-    c. logs that outgoing request is about to be sent with all the available context: `Request-Id`, `Correlation-Context` and `Request-Context`
-    d. sends request to service-b
+    * adds extra property to `Request-Context: storageId=1`
+    * generates new `Request-Id` by appending try number to the parent request id: abc.1
+    * logs that outgoing request is about to be sent with all the available context: `Request-Id: abc.1`, `Correlation-Context: sampled=true` and `Request-Context: storageId=1`
+    * sends request to service-b
+
 6. B: service-b receives request
 7. B: scans through it's headers and finds `Request-Id: abc.1`, 'Correlation-Context: sampled=true` and 'Request-Context: storageId=1`.
 8. B: logs event that operation was started along with all available context
 9. B: makes request to service-c:
-    a. adds extra property to `Request-Context: storageId=2`
-    b. generates new `Request-Id` by appending try number to the parent request id: abc.1.1
-    c. logs that outgoing request is about to be sent with all the available context: `Request-Id: abc.1.1`, `Correlation-Context: sampled=true` and `Request-Context: storageId=2`
-    d. sends request to service-c
-...        
+    * adds extra property to `Request-Context: storageId=2`
+    * generates new `Request-Id` by appending try number to the parent request id: abc.1.1
+    * logs that outgoing request is about to be sent with all the available context: `Request-Id: abc.1.1`, `Correlation-Context: sampled=true` and `Request-Context: storageId=2`
+    * sends request to service-c
+    
+10. C: service-c receives request, logs and processes it and responds with `Response-Context: storageId=3`
+11. B: service-b receives service-c response 
+    * logs response with context: `Request-Id: abc.1.1`, `Correlation-Context: sampled=true` and `Request-Context: storageId=2`, `ResponseContext: storageId=3`
+    * responds to service-a with `Response-Context: storageId=2`
+    
+12. A: service-a receives service-a response
+    * logs response with context: `Request-Id: abc.1`, `Correlation-Context: sampled=true`, `Request-Context: storageId=1`, `ResponseContext: storageId=2`
+    * Responds to caller and may optionally add `Response-Context: Request-Id=abc.1` to inform user about generated requestId or any other context.
 
 # Industry standards
 - [Google Dapper tracing system](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36356.pdf)
