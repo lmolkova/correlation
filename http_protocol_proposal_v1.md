@@ -71,7 +71,7 @@ Correlation-Context is represented as comma separated list of key value pairs, w
 - Practically HTTP header size is limited to several kilobytes (depending on a web server)
 
 # Examples
-Let's consider three services: service-a, service-b and service-c. User calls service-a, which calls service-b which in its turn calls service-c.
+Let's consider three services: service-a, service-b and service-c. User calls service-a, which calls service-b to fullfill the user request
 
 `User -> service-a -> service-b`
 
