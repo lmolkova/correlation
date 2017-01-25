@@ -16,8 +16,8 @@ This standard describes context and it's format in HTTP communication.
 | ----------------------| ---------- | ---------- |
 | Request-Id            | Required. String | Unique identifier for every HTTP request involved in operation processing |
 | Correlation-Context   | Optional. Comma separated list of key-value pairs: key1=value1, key2=value2 | Operation context which is propagated across all services involved in operation processing |
-| Request-Context       | Optional **request** header. Comma separated list of key-value pairs: key3=value3, key4=value4 | Context which is passed from caller in request to callee  and **not** propagated further | 
-| Response-Context      | Optional **response** header. Comma separated list of key-value pairs: key5=value5, key6=value6 | Context which is passed from callee in response to caller request and **not** propagated further | 
+| Request-Context       | Optional **request** header. Comma separated list of key-value pairs: key3=value3, key4=value4 | Context which is passed from caller in **request** to callee  and **not** propagated further | 
+| Response-Context      | Optional **response** header. Comma separated list of key-value pairs: key5=value5, key6=value6 | Context which is passed from callee in **response** to caller request and **not** propagated further | 
 
 ## Request-Id
 `Request-Id` uniquely identifies every HTTP request involved in operation processing. 
