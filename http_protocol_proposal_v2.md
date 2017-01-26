@@ -2,8 +2,9 @@ This protocol extends [Correlation HTTP protocol proposal](https://github.com/lm
 
 # Motivation
 In addition to [V1](https://github.com/lmolkova/correlation/blob/master/http_protocol_proposal_v1.md) scenarios, we want to provide mechanism for services to send context to it's immediate receiver or pass back context to caller. Real world examples include:
-* Distributed telemetry storage: additionally to Request-Id (defined in [V1](https://github.com/lmolkova/correlation/blob/master/http_protocol_proposal_v1.md)), user needs to query all telemetry storage tenants where telemetry for this operation may be. Tracing systems may visualize application maps based on the extended properties in caller and callee logs
-* Availability testing: since querying telemetry events may be long operation, services may include some extended details in response to the request to help immediately and automatically identify broken part in the availability test
+* Distributed telemetry storage: additionally to Request-Id (defined in [V1](https://github.com/lmolkova/correlation/blob/master/http_protocol_proposal_v1.md)), user needs to query all telemetry storage tenants where logs for this operation may be. Tracing systems may visualize application maps based on the extended properties in caller and callee logs. To support this scenario, tenant identifier of caller may be passed to callee in request and calle may include it's tenant id into the response.
+* Log query optimization: applications may add redundunt information into their telemetry to avoid querying telemetry storage multiple times and/or perform joins which may be expensive operations. In some cases, when services belong to multiple organizations, it could be hard or impossible to get all parts of telemtery. In addition to Request-Id and Correlation-Context, services may need to exchange with the context that makes sense to immediate receiver only such as sender/receiver version, device/service type, user/initiator details.
+* Availability testing: querying telemetry events may take a long time, it's also hard to automate. To help immediate and automated root cause analysis services may include extended detailed status in response to the request.
 
 # Extension Proposal 
 | Header name           |  Format    | Description |
