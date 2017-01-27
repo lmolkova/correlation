@@ -25,24 +25,25 @@ Request-Id is generated on the caller side and passed to callee. Implementation 
 1. If it's present, implementation MUST generate unique `Request-Id` for every outoing request and pass it to downstream service (supporting this protocol)
 2. If it's not present, it may indicate this is the first instrumented service to receive request or this request was not sampled by upstream service and therefore does not have any context associated with it. In this case implementation MAY:
   * generate new `Request-Id` (see [Root Parent Id Generation](#root-parent-id-generation) for generation considerations) for the incoming request, and follow the same path as if `Request-Id` was present initially (see p1)
+  
   OR
-  * consider this is non-sampled request, so it is not required to generate Request-Ids and propagate them.
+  * consider this request as is not sampled, so it is not required to generate Request-Ids and propagate them.
 
 It is essential that 'incoming' and 'outgoing' Request-Ids are included in the telemetry events, so implementation of this protocol MUST provide read access to Request-Id for logging systems.
 
-`Request-Id` is required field, which means that every instrumented request MUST have it. If implementation does not find `Request-Id` in the incoming request headers, it should consider it as non-instrumented and SHOULD not look for `Correlation-Context`.
+`Request-Id` is required field, which means that every instrumented request MUST have it. If implementation does not find `Request-Id` in the incoming request headers, it should consider it as non-instrumented and MAY not look for `Correlation-Context`.
 
 ###  Hierarchical Request-Id
 Implementations SHOULD use hierarchical structure for the Id. 
 
-* If Request-Id is provided from upstream service, implementation SHOULD append small id preceded with separator and pass it to downstream service, making sure every outgoing request has different suffix.
-* If it is not provided and implementation decides to instrument the request,  it MUST generate new `Request-Id` (see [Root Parent Id Generation](#root-parent-id-generation)) to represent incoming request and follow approach described in p1. for outgoing requests.
+1. If Request-Id is provided from upstream service, implementation SHOULD append small id preceded with separator and pass it to downstream service, making sure every outgoing request has different suffix.
+2. If it is not provided and implementation decides to instrument the request,  it MUST generate new `Request-Id` (see [Root Parent Id Generation](#root-parent-id-generation)) to represent incoming request and follow approach described in p1. for outgoing requests.
 
 Thus, Request-Id has path structure and the root node serve as single correlation id, common for all requests involved in operation processing and implementations are ENCOURAGED to follow this approach. 
 
 If implementation chooses not to follow this recommendation, it MUST ensure
 
-1. It provides additional Id property in `Correlation-Context` serving as single unique identifier of the whole operation
+1. It provides additional `Id` property in `Correlation-Context` serving as single unique identifier of the whole operation
 2. `Request-Id` is unique for every outgoing request made in scope of the same operation
 
 ### Request-Id Format
@@ -79,7 +80,7 @@ If implementation does not support hierarchical `Request-Id` structure, it MUST 
 ### Correlation Id
 Many applications and tracing systems implement single correlation id, identifying the whole operation through all services and client applications. Even though, root part of Request-Id may be used for this purpose, having additional field for correlation id could be more efficient for existing tracing systems and query tools.
 
-If implementation needs to pass such correaltion id, we ENCOURADGE it to use `Id` property in `Correlation-Context`.
+If implementation needs to pass such correlation id, we ENCOURADGE it to use `Id` property in `Correlation-Context`.
 
 Since it could be problematic to ensure client code always set correlation id (because it's done from browser or client application is hard to change), implementation MAY generate a new Id and add it to the `Correlation-Context` if it's not present in the incoming request, see [Root Parent Id Generation](#root-parent-id-generation) for generation considerations.
 
@@ -132,7 +133,7 @@ As a result log records may look like:
 | response from service-a | user | `Request-Id=abc` |
 
 #### Remarks
-* All logs may be queried by Request-id prefix `abc` or exact Id match: `123`
+* All logs may be queried by Request-id prefix `abc`, all backend logs may also be queried by exact Id match: `123`
 * Logs for particular request may be queried by exact Request-Id match
 * Every time service receives request, it generates new Request-Id, however it is not a requirement
 * It's recommended to add Parent-Request-Id (as Request-Id of parent operation) to the logs to exactly know which operation caused nested operation to start. Even though Request-Id has heirarchical structure, having parent id logged ensures that parent-child relationships of nested operations could be always restored. 
@@ -169,7 +170,7 @@ As a result log records may look like:
 | response from service-a | user | `Request-Id=abc` |
 
 #### Remarks
-* All logs may be queried by Id `123`
+* Fining all logs may require several queries, however user may also set correlation id to simplify it. Query may start with Request-Id from user: `select Id where Parent-Request-Id == 123`, which will give correlation Id. Than all logs may be queried for `Request-Id == abc` || `Id == 123`
 * Logs for particular request may be queried by exact Request-Id match
 * When nested operation starts (outgoing request), request-id of parent operation (incoming request) needs to be logged to find what cased nested operation to start and therefore describe parent-child relationship of operations in logs
 
