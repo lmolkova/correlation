@@ -15,7 +15,7 @@ This standard describes context and it's format in HTTP communication.
 | Header name           |  Format    | Description |
 | ----------------------| ---------- | ---------- |
 | Request-Id            | Required. String | Unique identifier for every HTTP request involved in operation processing |
-| Correlation-Context   | Optional. Comma separated list of key-value pairs: key1=value1, key2=value2 | Operation context which is propagated across all services involved in operation processing |
+| Correlation-Context   | Optional. Comma separated list of key-value pairs: Id=id, key1=value1, key2=value2 | Operation context which is propagated across all services involved in operation processing |
 
 ## Request-Id
 `Request-Id` uniquely identifies every HTTP request involved in operation processing. 
