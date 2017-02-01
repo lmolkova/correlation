@@ -170,7 +170,7 @@ As a result log records may look like:
 | response from service-a | user | `Request-Id=abc` |
 
 #### Remarks
-* Fining all logs may require several queries, however user may also set correlation id to simplify it. Query may start with Request-Id from user: `select Id where Parent-Request-Id == 123`, which will give correlation Id. Than all logs may be queried for `Request-Id == abc` || `Id == 123`
+* Fining all logs may require several queries, however user may also set correlation id to simplify it. Query may start with Request-Id from user: `select Id where Parent-Request-Id == 123`, which will give correlation Id. Then all logs may be queried for `Request-Id == abc` || `Id == 123`
 * Logs for particular request may be queried by exact Request-Id match
 * When nested operation starts (outgoing request), request-id of parent operation (incoming request) needs to be logged to find what cased nested operation to start and therefore describe parent-child relationship of operations in logs
 
