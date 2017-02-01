@@ -111,13 +111,13 @@ Let's also imagine user provides initial `Request-Id: abc`(it's not long enough,
   * logs that outgoing request is about to be sent with all the available context: `Request-Id: abc.1.1`, `Correlation-Context: Id=123`
   * sends request to service-b
 3. B: service-b receives request
-   * scans through its headers and finds `Request-Id: abc.1.1`, `Correlation-Context: Id=123`
-   * it generates a new Request-Id: `abc.1.1.1` to uniquely describe operation within service-b
-   * logs event that operation was started along with all available context: `Request-Id: abc.1.1.1`, `Correlation-Context: Id=123`
-   * processes request and responds to service-a
+  * scans through its headers and finds `Request-Id: abc.1.1`, `Correlation-Context: Id=123`
+  * it generates a new Request-Id: `abc.1.1.1` to uniquely describe operation within service-b
+  * logs event that operation was started along with all available context: `Request-Id: abc.1.1.1`, `Correlation-Context: Id=123`
+  * processes request and responds to service-a
 4. A: service-a receives response from service-b
-    * logs response with context: `Request-Id: abc.1.1`, `Correlation-Context: Id=123`
-    * Processes request and responds to caller
+  * logs response with context: `Request-Id: abc.1.1`, `Correlation-Context: Id=123`
+  * Processes request and responds to caller
 
 As a result log records may look like:
 
@@ -149,12 +149,12 @@ As a result log records may look like:
   * logs that outgoing request is about to be sent with all the available context: `Request-Id: ghi`, `Correlation-Context: Id=123`
   * sends request to service-b
 3. B: service-b receives request
-   * scans through its headers and finds `Request-Id: ghi`, `Correlation-Context: Id=123`
-   * logs event that operation was started along with all available context: `Request-Id: ghi`, `Correlation-Context: Id=123`
-   * processes request and responds to service-a
+  * scans through its headers and finds `Request-Id: ghi`, `Correlation-Context: Id=123`
+  * logs event that operation was started along with all available context: `Request-Id: ghi`, `Correlation-Context: Id=123`
+  * processes request and responds to service-a
 4. A: service-a receives response from service-b
-    * logs response with context: `Request-Id: def`, `Correlation-Context: Id=123`
-    * Processes request and responds to caller
+  * logs response with context: `Request-Id: def`, `Correlation-Context: Id=123`
+  * Processes request and responds to caller
 
 As a result log records may look like:
 
@@ -173,6 +173,49 @@ As a result log records may look like:
 * Fining all logs may require several queries, however user may also set correlation id to simplify it. Query may start with Request-Id from user: `select Id where Parent-Request-Id == 123`, which will give correlation Id. Than all logs may be queried for `Request-Id == abc` || `Id == 123`
 * Logs for particular request may be queried by exact Request-Id match
 * When nested operation starts (outgoing request), request-id of parent operation (incoming request) needs to be logged to find what cased nested operation to start and therefore describe parent-child relationship of operations in logs
+
+## Mixed hierarchical and non-hierarchical scenario
+In heterogenious environment, some services may support hierarchical Request-Id generation and other may not.
+
+Requirements listed [Request-Id](#request-id) help to ensure all telemetry for the operation still is accessible:
+- if implementation supports hierarchical Request-Id, it MUST propagate `Correlation-Context` and **MAY** add `Id` if missing
+- if implementation does NOT support hierarchical Request-Id, it MUST propagate `Correlation-Context` and **MUST** add `Id` if missing
+
+Let's imagine service-a supports hierarchical Request-Id and service-b does not:
+
+1. A: service-a receives request 
+  * scans through its headers and finds `Request-Id : abc`.
+  * generates a new one: `abc.1`
+  * logs event that operation was started along with `Request-Id: abc.1`
+2. A: service-a makes request to service-b:
+  * generates new `Request-Id: abc.1.1`
+  * logs that outgoing request is about to be sent with all the available context
+  * sends request to service-b
+3. B: service-b receives request
+  * scans through its headers and finds `Request-Id: abc.1.1`
+  * generates a new Request-Id: `def`   
+  * does not see `Correlation-Context` and adds `Id` property to CorrelationContext `Id=123`
+  * logs event that operation was started along with all available context
+  * processes request and responds to service-a
+4. A: service-a receives response from service-b
+  * logs response with context: `Request-Id: abc.1.1`
+  * Processes request and responds to caller
+
+As a result log records may look like:
+
+| Message  |  Component Name | Context |
+| ---------| --------------- | ------- |
+| user starts request to service-a | user | `Request-Id=abc` |
+| incoming request | service-a | `Request-Id=abc.1; Parent-Request-Id=abc` |
+| request to service-b | service-a | `Request-Id=abc.1.1; Parent-Request-Id=abc.1` |
+| incoming request | service-b | `Request-Id=def; Parent-Request-Id=abc.1.1; Id=123` |
+| response | service-b |`Request-Id=def; Parent-Request-Id=abc.1.1; Id=123` |
+| response from service-b | service-a | `Request-Id=abc.1.1; Parent-Request-Id=abc.1` |
+| response | service-a |`Request-Id=abc.1; Parent-Request-Id=abc` |
+| response from service-a | user | `Request-Id=abc` |
+
+#### Remarks
+* Retrieving all log records would require several queries: all logs without correlation-id (from service-a and upstream) could be queried by Request-Id prefix, all downstream logs could be queried by Correlation Id. Correlation-Id may be found by Parent-Request-Id query with `abc` prefix. User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval.
 
 # Industry standards
 - [Google Dapper tracing system](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36356.pdf)
