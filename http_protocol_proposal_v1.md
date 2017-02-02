@@ -83,6 +83,7 @@ As a result Request-Id will look like:
 Thus, to the extent possible, resulting Request-Id will keep valid part of hierarchical Id.
 
 LocalId should be large enough to ensure new Request-Id does not collide with one of previous/future Request-Ids within the same operation. Using lower bytes of current timestamp with ticks precesion is a good candidate for LocalId.
+Note that it may be useful to 
 
 #### Root Request Id Generation
 If `Request-Id` is not provided, it indicates that it's first instrumented service to process the operation or upstream service decided not to sample this request.
