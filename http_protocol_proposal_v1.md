@@ -169,7 +169,7 @@ As a result log records may look like:
 | response from service-a | user | `Request-Id=/abc` |
 
 #### Remarks
-* All logs may be queried by Request-id prefix `abc`, all backend logs may also be queried by exact Id match: `123`
+* All logs may be queried by Request-id prefix `/abc`, all backend logs may also be queried by exact Id match: `123`
 * Logs for particular request may be queried by exact Request-Id match
 * Every time service receives request, it generates new Request-Id, however it is not a requirement
 * It's recommended to add Parent-Request-Id (as Request-Id of parent operation) to the logs to exactly know which operation caused nested operation to start. Even though Request-Id has heirarchical structure, having parent id logged ensures that parent-child relationships of nested operations could be always restored. 
