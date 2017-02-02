@@ -24,7 +24,7 @@ Request-Id is generated on the caller side and passed to callee. Implementation 
 
 1. If it's present, implementation MUST generate unique `Request-Id` for every outoing request and pass it to downstream service (supporting this protocol)
 2. If it's not present, it may indicate this is the first instrumented service to receive request or this request was not sampled by upstream service and therefore does not have any context associated with it. In this case implementation MAY:
-  * generate new `Request-Id` (see [Root Parent Id Generation](#root-parent-id-generation) for generation considerations) for the incoming request, and follow the same path as if `Request-Id` was present initially (see p1)
+  * generate new `Request-Id` (see [Root Request Id Generation](#root-request-id-generation) for generation considerations) for the incoming request, and follow the same path as if `Request-Id` was present initially (see p1)
   
   OR
   * consider this request as is not sampled, so it is not required to generate Request-Ids and propagate them.
@@ -37,7 +37,7 @@ It is essential that 'incoming' and 'outgoing' Request-Ids are included in the t
 Implementations SHOULD use hierarchical structure for the Id. 
 
 1. If Request-Id is provided from upstream service, implementation SHOULD append small id preceded with separator and pass it to downstream service, making sure every outgoing request has different suffix.
-2. If it is not provided and implementation decides to instrument the request,  it MUST generate new `Request-Id` (see [Root Parent Id Generation](#root-parent-id-generation)) to represent incoming request and follow approach described in p1. for outgoing requests.
+2. If it is not provided and implementation decides to instrument the request,  it MUST generate new `Request-Id` (see [Root Request Id Generation](#root-request-id-generation)) to represent incoming request and follow approach described in p1. for outgoing requests.
 
 Thus, Request-Id has path structure and the root node serve as single correlation id, common for all requests involved in operation processing and implementations are ENCOURAGED to follow this approach. 
 
@@ -47,7 +47,7 @@ If implementation chooses not to follow this recommendation, it MUST ensure
 2. `Request-Id` is unique for every outgoing request made in scope of the same operation
 
 ### Request-Id Format
-`Request-Id` is a string up to 256 bytes in length.
+`Request-Id` is a string up to 128 bytes in length inclusively.
 
 #### Formatting hierarchical Request-Id
 `Request-Id` has following schema:
@@ -55,16 +55,19 @@ If implementation chooses not to follow this recommendation, it MUST ensure
 parentId.localId
 
 ParentId is Request-Id passed from upstream service (or generated if was not provided), it may have hierarchical structure itself.
-LocalId is generated to identify internal operation. It may have hierarchical structure considering service or protocol implementation may split operation to multiple activities.
-- It MUST be unique for every outgoing HTTP request sent while processing the incoming request. 
-- It SHOULD be small to avoid `Request-Id` overflow
-- If appending localId to `Request-Id` would cause it to exceed length limit, implementation MUST keep the root node in the `Request-Id` and do its best effort to generate unique suffix to root id.
+LocalId is generated to identify internal operation. It may have hierarchical structure too, considering service or protocol implementation may split operation to multiple activities.
+- localId MUST be unique for every outgoing HTTP request sent while processing the incoming request. 
+- localId SHOULD be small to reduce possibility of `Request-Id` overflow. On a platforms which support atomic increment, number of outgoing request within the scope of this operation, may be a good candidate.
+- If appending localId to `Request-Id` would cause Request-Id to exceed length limit, implementation MUST keep the root node (part of the Request-Id before first "." delimiter) and do its best effort to generate unique suffix. Such suffix should be sufficiently large to keep collision probability small enough; e.g. low bits od current timestamp with at least millisecond precision is a good candidate for the suffix.
 
 Parent and local Ids are separated with "." delimiter.
 
-#### Root Parent Id Generation
+#### Root Request Id Generation
 If `Request-Id` is not provided, it indicates that it's first instrumented service to process the operation or upstream service decided not to sample this request.
-If implementation decides to instrument this request flow, it MUST generate sufficiently large random identifier: e.g. GUID, 64bit number.
+
+If implementation decides to instrument this request flow, it MUST generate sufficiently large random identifier: e.g. GUID or 64bit number.
+Delimiter (".") MUST NOT appear in the root identifier.
+
 Same considerations are applied to client applications making HTTP requests and generating root request id.
 
 ## Correlation-Context
@@ -80,9 +83,11 @@ If implementation does not support hierarchical `Request-Id` structure, it MUST 
 ### Correlation Id
 Many applications and tracing systems implement single correlation id, identifying the whole operation through all services and client applications. Even though, root part of Request-Id may be used for this purpose, having additional field for correlation id could be more efficient for existing tracing systems and query tools.
 
-If implementation needs to pass such correlation id, we ENCOURADGE it to use `Id` property in `Correlation-Context`.
+If implementation needs to pass such correlation id, it MUST use `Id` property in `Correlation-Context`.
 
-Since it could be problematic to ensure client code always set correlation id (because it's done from browser or client application is hard to change), implementation MAY generate a new Id and add it to the `Correlation-Context` if it's not present in the incoming request, see [Root Parent Id Generation](#root-parent-id-generation) for generation considerations.
+Since it could be problematic to ensure client code always set correlation id (because it's done from browser or client application is hard to change), implementation MAY generate a new Id and add it to the `Correlation-Context` if it's not present in the incoming request, see [Root Request Id Generation](#root-request-id-generation) for generation considerations.
+
+Implementation which does not support hierarchical Request-Id, MUST ensure `Id` is present in `Corellation-Context` and add it if it is not present.
 
 ### Correlation-Context Format
 Correlation-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
@@ -216,6 +221,13 @@ As a result log records may look like:
 
 #### Remarks
 * Retrieving all log records would require several queries: all logs without correlation-id (from service-a and upstream) could be queried by Request-Id prefix, all downstream logs could be queried by Correlation Id. Correlation-Id may be found by Parent-Request-Id query with `abc` prefix. User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval.
+
+## Request-Id overflow
+1. Service receives Request-Id `41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1.....1` of 127 bytes length.
+2. It generates suffix for outgoing request `.1` that causes Request-Id length to become 129 bytes, which exceeds Request-Id length limit.
+ * It parses RequestId and finds root part: `41372a23-1f07-4617-bf5e-cbe78bf0a84d`
+ * It generates suffix `12a90283` as hex-encoded 4 low bits of current timestamp. It helps to ensure that previous Request-Ids assigned on upstream service withing the same operations scope do not collide with this one.
+ * It generates Request-Id for outgoing request as `41372a23-1f07-4617-bf5e-cbe78bf0a84d.12a90283`
 
 # Industry standards
 - [Google Dapper tracing system](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36356.pdf)
