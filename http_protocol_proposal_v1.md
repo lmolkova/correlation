@@ -256,9 +256,11 @@ As a result log records may look like:
 ## Request-Id overflow
 1. Service receives Request-Id `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1.1234567890` of 127 bytes length.
 2. It generates suffix for outgoing request `.1` that causes Request-Id length to become 129 bytes, which exceeds Request-Id length limit.
- * It generates suffix `12a90283` as hex-encoded 4 bytes random integer. It helps to ensure that previous Request-Ids assigned on upstream service within the same operations scope do not collide with this one.
- * It trims out last node of the Request-Id (.1234567890) to make room for new suffix. 
+ * It generates suffix `12a90283` as hex-encoded 4 bytes random integer.
+ * It trims out whole last node of the Request-Id (.1234567890) to make room for new suffix. 
  * It generates new Request-Id for outgoing request as `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1#12a90283`
+3. Next service receives request with Request-Id `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1#12a90283`
+ *  Once it needs to generate new Request-Id, it trims out whole last node `#12a90283`, generates new suffix and appends it to the rest of Request-Id:  `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1#28e93c43`
 
 # Industry standards
 - [Google Dapper tracing system](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36356.pdf)
