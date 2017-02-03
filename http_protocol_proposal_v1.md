@@ -73,17 +73,19 @@ Appending LocalId to `Request-Id` may cause Request-Id to exceed length limit.
 ##### Request-Id Overflow
 To handle overflow, implementation 
 * MUST generate such LocalId that keeps possibility of collision with any of the previous or future Request-Id within the same operation neglectable.
-* MUST trim end of existing Request-Id to make a room for generated LocalId. Implementation MUST trim whole nodes (separated with ".") with preceeding ".", i.e. it's invalid to trim only part of node.
 * MUST prepend LocalId with "#" symbol to indicate that overflow happened.
+* MUST trim end of existing Request-Id to make a room for generated LocalId. Implementation MUST trim whole nodes (separated with ".") with preceeding "." ore previous overflow LocalId with preceeding "#", i.e. it's invalid to trim only part of node. 
+- LocalId MUST contain only [Base64 characters](https://en.wikipedia.org/wiki/Base64) and "-".
 
 As a result Request-Id will look like: 
 
   `Beginning-Of-Parent-Request-Id#LocalId`
 
-Thus, to the extent possible, resulting Request-Id will keep valid part of hierarchical Id.
+Thus, to the extent possible, Request-Id will keep valid part of hierarchical Id.
 
-LocalId should be large enough to ensure new Request-Id does not collide with one of previous/future Request-Ids within the same operation. Using lower bytes of current timestamp with ticks precesion is a good candidate for LocalId.
-Note that it may be useful to 
+LocalId should be large enough to ensure new Request-Id does not collide with one of previous/future Request-Ids within the same operation. Using random 4 bytes integer is a good candidate for LocalId.
+
+Note that applications could asynchronously start multiple outgoing requests almost at the same time, which makes timestamp even with ticks precesion bad candidate for LocalId.
 
 #### Root Request Id Generation
 If `Request-Id` is not provided, it indicates that it's first instrumented service to process the operation or upstream service decided not to sample this request.
@@ -254,7 +256,7 @@ As a result log records may look like:
 ## Request-Id overflow
 1. Service receives Request-Id `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1.1234567890` of 127 bytes length.
 2. It generates suffix for outgoing request `.1` that causes Request-Id length to become 129 bytes, which exceeds Request-Id length limit.
- * It generates suffix `12a90283` as hex-encoded 4 low bytes of current timestamp. It helps to ensure that previous Request-Ids assigned on upstream service within the same operations scope do not collide with this one.
+ * It generates suffix `12a90283` as hex-encoded 4 bytes random integer. It helps to ensure that previous Request-Ids assigned on upstream service within the same operations scope do not collide with this one.
  * It trims out last node of the Request-Id (.1234567890) to make room for new suffix. 
  * It generates new Request-Id for outgoing request as `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1#12a90283`
 
