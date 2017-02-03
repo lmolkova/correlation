@@ -251,7 +251,7 @@ As a result log records may look like:
 | response | service-a |`Request-Id=/abc.1` |
 
 #### Remarks
-* Retrieving all log records would require several queries: all logs without correlation-id (from service-a and upstream) could be queried by Request-Id prefix, all downstream logs could be queried by Correlation Id. Correlation-Id may be found by Parent-Request-Id query with `abc` prefix. User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval.
+* Retrieving all log records would require several queries: all logs without correlation-id (from service-a and upstream) could be queried by Request-Id prefix, all downstream logs could be queried by Correlation Id. Correlation-Id may be found by Parent-Request-Id query with `/abc.1` prefix. User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval.
 
 ## Request-Id overflow
 1. Service receives Request-Id `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1.1234567890` of 127 bytes length.
