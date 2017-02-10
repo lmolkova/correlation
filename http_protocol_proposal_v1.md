@@ -122,6 +122,10 @@ Since it could be problematic to ensure client code always set correlation id (b
 
 Implementation which does not support hierarchical Request-Id, MUST ensure `Id` is present in `Corellation-Context` and add it if not present.
 
+Implementation which does not support hierarchical Request-Id SHOULD set `Correlation-Context: Id` to the root node of Request-Id received from upstream service if
+ - it does NOT find existing `Id` property in `Correlation-Context` **AND**
+ - Request-Id received from upstream service has hierarchical structure
+ 
 ### Correlation-Context Format
 Correlation-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
 
@@ -232,7 +236,7 @@ Let's imagine service-a supports hierarchical Request-Id and service-b does not:
 3. B: service-b receives request
   * scans through its headers and finds `Request-Id: /abc.1.1`
   * generates a new Request-Id: `def`   
-  * does not see `Correlation-Context` and adds `Id` property to CorrelationContext `Id=123`
+  * does not see `Correlation-Context`. It parses parent Request-Id, extracts root node: `abc` and adds `Id` property to `CorrelationContext : Id=abc`
   * logs event that operation was started
   * processes request and responds to service-a
 4. A: service-a receives response from service-b
@@ -245,13 +249,15 @@ As a result log records may look like:
 | ---------| --------------- | ------- |
 | incoming request | service-a | `Request-Id=/abc.1` |
 | request to service-b | service-a | `Request-Id=/abc.1.1; Parent-Request-Id=/abc.1` |
-| incoming request | service-b | `Request-Id=def; Parent-Request-Id=/abc.1.1; Id=123` |
-| response | service-b |`Request-Id=def; Parent-Request-Id=/abc.1.1; Id=123` |
+| incoming request | service-b | `Request-Id=def; Parent-Request-Id=/abc.1.1; Id=abc` |
+| response | service-b |`Request-Id=def; Parent-Request-Id=/abc.1.1; Id=abc` |
 | response from service-b | service-a | `Request-Id=/abc.1.1; Parent-Request-Id=/abc.1` |
 | response | service-a |`Request-Id=/abc.1` |
 
 #### Remarks
-* Retrieving all log records would require several queries: all logs without correlation-id (from service-a and upstream) could be queried by Request-Id prefix, all downstream logs could be queried by Correlation Id. Correlation-Id may be found by Parent-Request-Id query with `/abc.1` prefix. User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval.
+* Note, that even if service-b does not **generate** hierarchical Request-Id, it still could benefit from hierarchical structure, assigning `Correlation-Context: Id` to the root node of Request-Id
+* Retrieving all log records then could be done with query like `select * where RequestId.startsWith('/abc') or Id.equals('abc')`. This is a good alternative to assigning random correlation-id and running multiple queries to get all logs
+* User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval and optimize query even further.
 
 ## Request-Id overflow
 1. Service receives Request-Id `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1.1234567890` of 127 bytes length.
