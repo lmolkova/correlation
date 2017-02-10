@@ -9,7 +9,7 @@ Typical scenarios include:
 
 These scenarios require every request to carry additional context and services to enrich their telemetry events with this context, so it would possible to correlate telemetry from all services involved in operation processing.
 
-This standard describes context and it's format in HTTP communication.
+This proposal describes context and it's format in HTTP communication.
 
 # HTTP Protocol proposal
 | Header name           |  Format    | Description |
