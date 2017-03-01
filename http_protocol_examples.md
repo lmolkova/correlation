@@ -1,6 +1,6 @@
-This document provides examples for [HTTP protocol proposal](https://github.com/lmolkova/correlation/blob/master/http_protocol_proposal_v1.md) for telemetry correlation.
+This document provides examples for [HTTP protocol proposal](http_protocol_proposal_v1.md) for telemetry correlation.
 
-See also [Hierarchical Request-Id](https://github.com/lmolkova/correlation/blob/master/hierarchical_request_id.md)
+See also [Hierarchical Request-Id](hierarchical_request_id.md)
 
 # Examples
 Let's consider three services: service-a, service-b and service-c. User calls service-a, which calls service-b to fulfill the user request
