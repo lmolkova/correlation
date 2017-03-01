@@ -1,5 +1,5 @@
 #  Hierarchical Request-Id
-This document provides extension for [HTTP protocol proposal](https://github.com/lmolkova/correlation/edit/master/http_protocol_proposal_v1.md) for telemetry correlation.
+This document provides extension for [HTTP protocol proposal](http_protocol_proposal_v1.md) for telemetry correlation.
 
 ## Overview
 The main requirement for Request-Id is uniqueness, any two requests processed by the same cluster must not collide within reasonable amount of time.
@@ -11,7 +11,7 @@ Root-id serves as common identifier for all requests involved in operation proce
 [CorrelationVector](https://osgwiki.com/wiki/CorrelationVector) is a valid hierarchical Request-Id as defined by this document.
 
 If `Request-Id` was not provided and implementation decides to instrument the request,
-it MUST generate new `Request-Id` (see [Root Request Id Generation](https://github.com/lmolkova/correlation/edit/master/http_protocol_proposal_v1.md#root-request-id-generation))
+it MUST generate new `Request-Id` (see [Root Request Id Generation](http_protocol_proposal_v1.md#root-request-id-generation))
 to represent incoming request.
 If `Request-Id` is provided from upstream service, implementation MUST append small id preceded with separator 
 and pass it to downstream service, making sure every outgoing request has different suffix.
