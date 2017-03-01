@@ -42,7 +42,7 @@ As a result log records may look like:
 #### Remarks
 * All logs may be queried by Request-id prefix `/abc` and by RootId `abc` exact match.
 * Logs for particular request may be queried by exact Request-Id match
-* Note that Parent-Request-Id is logged. If all parties generate hierarchical Ids, it might be redundant, however in case if Request-Id overflow it or mixed Request-Id schema it may be a single way to resore parent-child relationships between operations.
+* Note that Parent-Request-Id is logged. If all parties generate hierarchical Ids, it might be redundant, however in case if Request-Id overflow it or mixed Request-Id schema it may be a single way to restore parent-child relationships between operations.
 
 ## Non-hierarchical Request-Id example
 1. A: service-a receives request 
