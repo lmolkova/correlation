@@ -11,40 +11,38 @@ Let's also imagine user provides initial `Request-Id: /abc`(it's not long enough
 
 1. A: service-a receives request 
   * scans through its headers and finds `Request-Id : /abc`.
-  * it generates a new Request-Id: `/abc.1` to uniquely describe operation within service-a
-  * it does not find `Correlation-Context` and Id, so it adds Id property to CorrelationContext `Id=123`
-  * logs event that operation was started along with `Request-Id: /abc.1` and `Correlation-Context: Id=123`
+  * it generates a new Request-Id: `/abc.bcec871c` to uniquely describe operation within service-a
+  * logs event that operation was started along with `Request-Id: /abc.bcec871c` and root part of the Request-Id: "abc"
 2. A: service-a makes request to service-b:
-  * generates new `Request-Id` by appending try number to the parent request id: `/abc.1.1`
-  * logs that outgoing request is about to be sent with all the available context: `Request-Id: /abc.1.1`, `Correlation-Context: Id=123`
+  * generates new `Request-Id` by appending try number to the parent request id: `/abc.bcec871c.1`
+  * logs that outgoing request is about to be sent with all the available context: `Request-Id: /abc.bcec871c.1`, `RootId: abc`
   * sends request to service-b
 3. B: service-b receives request
-  * scans through its headers and finds `Request-Id: /abc.1.1`, `Correlation-Context: Id=123`
-  * it generates a new Request-Id: `/abc.1.1.1` to uniquely describe operation within service-b
-  * logs event that operation was started along with all available context: `Request-Id: /abc.1.1.1`, `Correlation-Context: Id=123`
+  * scans through its headers and finds `Request-Id: /abc.bcec871c.1`
+  * it generates a new Request-Id: `/abc.bcec871c.1.da4e9679` to uniquely describe operation within service-b
+  * logs event that operation was started along with all available context: `Request-Id: /abc.bcec871c.1.da4e9679`, `RootId: abc`
   * processes request and responds to service-a
 4. A: service-a receives response from service-b
-  * logs response with context: `Request-Id: /abc.1.1`, `Correlation-Context: Id=123`
+  * logs response with context: `Request-Id: /abc.bcec871c.1`, `RootId: abc`
   * Processes request and responds to caller
 
 As a result log records may look like:
 
 | Message  |  Component name | Context |
 | ---------| --------------- | ------- |
-| user starts request to service-a | user | `Request-Id=/abc` |
-| incoming request | service-a | `Request-Id=/abc.1; Parent-Request-Id=/abc; Id=123` |
-| request to service-b | service-a | `Request-Id=/abc.1.1; Parent-Request-Id=/abc.1; Id=123` |
-| incoming request | service-b | `Request-Id=/abc.1.1.1; Parent-Request-Id=/abc.1.1; Id=123` |
-| response | service-b | `Request-Id=/abc.1.1.1; Parent-Request-Id=/abc.1.1; Id=123` |
-| response from service-b | service-a | `Request-Id=/abc.1.1; Parent-Request-Id=/abc.1; Id=123` |
-| response | service-a | `Request-Id=/abc.1; Parent-Request-Id=/abc;  Id=123` |
-| response from service-a | user | `Request-Id=/abc` |
+| user starts request to service-a | user | `Request-Id=/abc; RootId=abc` |
+| incoming request | service-a | `Request-Id=/abc.bcec871c; Parent-Request-Id=/abc; RootId=abc` |
+| request to service-b | service-a | `Request-Id=/abc.bcec871c.1; Parent-Request-Id=/abc.bcec871c; RootId=abc` |
+| incoming request | service-b | `Request-Id=/abc.bcec871c.1.da4e9679; Parent-Request-Id=/abc.bcec871c.1; RootId=abc` |
+| response | service-b | `Request-Id=/abc.bcec871c.1.da4e9679; Parent-Request-Id=/abc.bcec871c.1; RootId=abc` |
+| response from service-b | service-a | `Request-Id=/abc.bcec871c.1; Parent-Request-Id=/abc.bcec871c; RootId=abc` |
+| response | service-a | `Request-Id=/abc.bcec871c; Parent-Request-Id=/abc; RootId=abc` |
+| response from service-a | user | `Request-Id=/abc; RootId=abc` |
 
 #### Remarks
-* All logs may be queried by Request-id prefix `/abc`, all backend logs may also be queried by exact Id match: `123`
+* All logs may be queried by Request-id prefix `/abc` and by RootId `abc` exact match.
 * Logs for particular request may be queried by exact Request-Id match
-* Every time service receives request, it generates new Request-Id, however it is not a requirement
-* It's recommended to add Parent-Request-Id (as Request-Id of parent operation) to the logs to exactly know which operation caused nested operation to start. Even though Request-Id has heirarchical structure, having parent id logged ensures that parent-child relationships of nested operations could be always restored. 
+* Note that Parent-Request-Id is logged. If all parties generate hierarchical Ids, it might be redundant, however in case if Request-Id overflow it or mixed Request-Id schema it may be a single way to resore parent-child relationships between operations.
 
 ## Non-hierarchical Request-Id example
 1. A: service-a receives request 
@@ -93,37 +91,37 @@ Let's imagine service-a supports hierarchical Request-Id and service-b does not:
 
 1. A: service-a receives request 
   * scans through its headers and does not find `Request-Id`.
-  * generates a new one: `/abc.1`
-  * logs event that operation was started along with `Request-Id: /abc.1`
+  * generates a new one: `/abc.bcec871c`
+  * logs event that operation was started along with `Request-Id: /abc.bcec871c`
 2. A: service-a makes request to service-b:
-  * generates new `Request-Id: /abc.1.1`
+  * generates new `Request-Id: /abc.bcec871c.1`
   * logs that outgoing request is about to be sent
   * sends request to service-b
 3. B: service-b receives request
-  * scans through its headers and finds `Request-Id: /abc.1.1`
+  * scans through its headers and finds `Request-Id: /abc.bcec871c.1`
   * generates a new Request-Id: `def`   
   * does not see `Correlation-Context`. It parses parent Request-Id, extracts root node: `abc` and adds `Id` property to `CorrelationContext : Id=abc`
   * logs event that operation was started
   * processes request and responds to service-a
 4. A: service-a receives response from service-b
-  * logs response with context: `Request-Id: /abc.1.1`
+  * logs response with context: `Request-Id: /abc.bcec871c.1`
   * Processes request and responds to caller
 
 As a result log records may look like:
 
 | Message  |  Component Name | Context |
 | ---------| --------------- | ------- |
-| incoming request | service-a | `Request-Id=/abc.1` |
-| request to service-b | service-a | `Request-Id=/abc.1.1; Parent-Request-Id=/abc.1` |
-| incoming request | service-b | `Request-Id=def; Parent-Request-Id=/abc.1.1; Id=abc` |
-| response | service-b |`Request-Id=def; Parent-Request-Id=/abc.1.1; Id=abc` |
-| response from service-b | service-a | `Request-Id=/abc.1.1; Parent-Request-Id=/abc.1` |
-| response | service-a |`Request-Id=/abc.1` |
+| incoming request | service-a | `Request-Id=/abc.bcec871c; RootId=abc` |
+| request to service-b | service-a | `Request-Id=/abc.bcec871c.1; Parent-Request-Id=/abc.bcec871c; RootId=abc` |
+| incoming request | service-b | `Request-Id=def; Parent-Request-Id=/abc.bcec871c.1; Id=abc` |
+| response | service-b |`Request-Id=def; Parent-Request-Id=/abc.bcec871c.1; Id=abc` |
+| response from service-b | service-a | `Request-Id=/abc.bcec871c.1; Parent-Request-Id=/abc.bcec871c; RootId=abc` |
+| response | service-a |`Request-Id=/abc.bcec871c; RootId=abc` |
 
 #### Remarks
-* Note, that even if service-b does not **generate** hierarchical Request-Id, it still could benefit from hierarchical structure, assigning `Correlation-Context: Id` to the root node of Request-Id
-* Retrieving all log records then could be done with query like `select * where RequestId.startsWith('/abc') or Id.equals('abc')`. This is a good alternative to assigning random correlation-id and running multiple queries to get all logs
-* User or implementation may insist on setting correlation id on the first instrumented serivce to simplify retrieval and optimize query even further.
+* Note, that even if service-b does not **generate** hierarchical Request-Id, it still could benefit from hierarchical structure, by assigning `Correlation-Context: Id` to the root node of Request-Id
+* Retrieving all log records then could be done by RootId or Id exact match to `abc`.
+* If the first service to process request does not support hierarchical ids, then it sets `Correlation-Context: Id` immediately and it's propagated further and still may be used to query all logs.
 
 ## Request-Id overflow
 1. Service receives Request-Id `/41372a23-1f07-4617-bf5e-cbe78bf0a84d.1.1.1....1.1234567890` of 127 bytes length.
