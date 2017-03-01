@@ -34,7 +34,7 @@ It is essential that 'incoming' and 'outgoing' Request-Ids are included in the t
 
 `Request-Id` is required field, which means that every instrumented request MUST have it. If implementation does not find `Request-Id` in the incoming request headers, it should consider it as non-instrumented and MAY not look for `Correlation-Context`.
 
-Implementations SHOULD support [hierarchical structure](hierarchical_request_id.md) for the Request-Id.
+Implementations SHOULD support hierarchical structure for the Request-Id, described in [Hierarchical Request-Id document](hierarchical_request_id.md).
 
 ### Request-Id Format
 `Request-Id` is a string up to 128 bytes in length inclusively.
@@ -47,28 +47,28 @@ If implementation decides to instrument this request flow, it MUST generate suff
 
 Root Request-Id MUST contain only [Base64 characters](https://en.wikipedia.org/wiki/Base64) and "-". 
 
-If implementation does not support hierarchical Request-Id generation, it MUST NOT start Request-Id with "/".
+If implementation does not support hierarchical `Request-Id` generation, it MUST NOT start Request-Id with "/".
 
 Same considerations are applied to client applications making HTTP requests and generating root Request-Id.
 
 ## Correlation-Context
 Identifies context of logical operation (transaction, workflow). Operation may involve multiple services interaction and the context should be propagated to all services involved in operation processing. Every service involved in operation processing may add its own correlation-context properties.
 
-Correlation-Context is optional, which means that it may or may not be provided by upstream service.
+`Correlation-Context` is optional, which means that it may or may not be provided by upstream service.
 
 If `Correlation-Context` is provided by upstream service, implementation MUST propagate it further to downstream services.
 
-Implementation MUST provide access to Correlation-Context for logging systems and MUST support adding properties to Correlation-Context.
+Implementation MUST provide access to `Correlation-Context` for logging systems and MUST support adding properties to Correlation-Context.
 
 If implementation does not support hierarchical `Request-Id` structure, it MUST ensure `Correlation-Context` has `Id` property serving as single unique identifier of the whole operation and generate one if missing.
  
 ### Correlation-Context Format
-Correlation-Context is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
+`Correlation-Context` is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
 
 `Correlation-Context: Id=correlationId, key1=value1, key2=value2`
 
 ### Correlation Id
-Many applications and tracing systems use single correlation id to identify whole operation through all services and client applications. Root part of hierarchical Request-Id may be used for this purpose.
+Many applications and tracing systems use single correlation id to identify whole operation through all services and client applications. Root part of hierarchical` Request-Id` may be used for this purpose.
 
 In case of heterogenious environment (where some services generate hierarchical Request-Ids and others generate flat Ids) having single identifier, common for all requests, helps to make telemetry query simple and efficient.
 
@@ -92,5 +92,5 @@ If implementation needs to add `Id` property to `Correlation-Context`:
 - [OpenTracing](http://opentracing.io/)
 
 # See also
-[Hierarchical Request-Id](hierarchical_request_id.md)
-[Examples](http_protocol_examples.md)
+- [Hierarchical Request-Id](hierarchical_request_id.md)
+- [Examples](http_protocol_examples.md)
