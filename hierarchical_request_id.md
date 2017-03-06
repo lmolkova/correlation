@@ -22,7 +22,7 @@ It also MUST append "." (dot) to the end of generated Request-Id to unambiguousl
 #### Incoming Request
 When Request-Id is provided by upstream service, there is no guarantee that it is unique within the entire system. 
 
-Implementation SHOULD make it unique by adding small suffix to incoming Request-Id to represent internal activity and use it for outgoing requests, see [Formatting Hierarchical Request Id](#incoming-request).
+Implementation SHOULD make it unique by adding small suffix to incoming Request-Id to represent internal activity and use it for outgoing requests.
 If implementation does not trust incoming Request-Id in the least, suffix may be as long as [Root Request Id](http_protocol_proposal_v1.md#root-request-id-generation).
 We recommend appending random string of 8 characters length (e.g. 32-bit hex-encoded random integer).
 
@@ -43,7 +43,7 @@ Let's consider three services: service-a, service-b and service-c. User calls se
 
 1. A: service-a receives request 
   * does not find `Request-Id` and generates a new root Request-Id `/Guid.`
-    * trace that incoming request was started along with `Request-Id: /Guid.`
+  * trace that incoming request was started along with `Request-Id: /Guid.`
 2. A: service-a makes request to service-b:
   * generates new `Request-Id` by appending request number to the parent request id: `/Guid.1.`
   * logs that outgoing request is about to be sent with all the available context: `Request-Id: /Guid.1.`
