@@ -3,14 +3,14 @@ This document provide guidance for implementations of [HTTP protocol proposal](h
 
 If implementation dot not implement it, it still MUST ensure essential requirements are met:
 * `Request-Id` uniquely identifies every HTTP request involved in operation processing. 
-* `Correlation-Context` has `Id` property serving as single unique identifier of the whole operation and generate one if missing.
+* `Correlation-Context` has `Id` property serving common identifier for the whole operation.
 
 ## Correlation Id
 Many applications and tracing systems use single correlation id to identify whole operation through all services and client applications.
 
 In case of heterogenious environment (where some services generate hierarchical Request-Ids and others generate flat Ids) having single identifier, common for all requests, helps to make telemetry query simple and efficient.
 
-Implementations MUST use `Id` property in `Correlation-Context` if they need propagate correlation id across the cluster.
+Implementations MUST use `Id` property in `Correlation-Context` if they need to propagate correlation id across the cluster.
 Implementation it MUST ensure `Id` is present in `Correlation-Context` or [generate](#correlation-id-generation) new one and add to the `Correlation-Context`.
 
 ### Correlation Id generation
@@ -72,8 +72,8 @@ Let's imagine service-a supports hierarchical Request-Id and service-b does not:
   * sends request to service-b
 3. B: service-b receives request
   * scans through its headers and finds `Request-Id: /Guid.1_`
-  * generates a new Request-Id: `def`   
-  * does not see `Correlation-Context`. It parses parent Request-Id, extracts root node: `Guid` and adds `Id` property to `CorrelationContext : Id=abc`
+  * generates a new Request-Id: `abc`   
+  * does not see `Correlation-Context`. It parses parent Request-Id, extracts root node: `Guid` and adds `Id` property to `CorrelationContext : Id=Guid`
   * logs event that operation was started
   * processes request and responds to service-a
 4. A: service-a receives response from service-b
@@ -86,8 +86,8 @@ As a result log records may look like:
 | ---------| --------------- | ------- |
 | incoming request | service-a | `Request-Id=/Guid.` |
 | request to service-b | service-a | `Request-Id=/Guid.1_` |
-| incoming request | service-b | `Request-Id=def; Parent-Request-Id=/Guid.1_; Id=Guid` |
-| response | service-b |`Request-Id=def; Parent-Request-Id=/Guid.1_; Id=Guid` |
+| incoming request | service-b | `Request-Id=abc; Parent-Request-Id=/Guid.1_; Id=Guid` |
+| response | service-b |`Request-Id=abc; Parent-Request-Id=/Guid.1_; Id=Guid` |
 | response from service-b | service-a | `Request-Id=/Guid.1_; Parent-Request-Id=/abc.bcec871c; Id=Guid` |
 | response | service-a |`Request-Id=/Guid.` |
 
