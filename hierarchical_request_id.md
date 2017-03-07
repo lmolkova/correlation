@@ -75,4 +75,4 @@ As a result log records may look like:
 * When service-a generates a new Request-Id, it does not append suffix, since it generates a root Request-Id and ensures its uniqueness
 
 # See also
-- [Non-hierarchical Request-Id](non-hierarchical_request_id.md)
+- [Flat Request-Id](flat_request_id.md)
