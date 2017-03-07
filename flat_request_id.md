@@ -1,11 +1,11 @@
 # Flat Request-Ids
-This document provide guidance for implementations of [HTTP protocol proposal](http_protocol_proposal_v1.md) without [hierarchical Request-Id](hierarchical_request_id.md) support or interoperability with services that do not support it. We strongly recommend every implementation to support [hierarchical Request-Id](hierarchical_request_id.md) wherever possible.
+This document provide guidance for implementations of [HTTP protocol proposal](http_protocol_proposal_v1.md) without [hierarchical Request-Id](hierarchical_request_id.md) support or interoperability with services that do not support it. 
 
-If implementation do not implement it, it still MUST ensure essential requirements are met:
+We strongly recommend every implementation to support [hierarchical Request-Id](hierarchical_request_id.md) wherever possible. If implementation do not support it, it still MUST ensure essential requirements are met:
 * `Request-Id` uniquely identifies every HTTP request involved in operation processing and MUST be generated for every incoming and outgoing request
 * `Correlation-Context` has `Id` property serving as single unique identifier of the whole operation and implementation MUST generate one if it is missing.
 
-Flat `Request-Id` requirements and generation considerations are the same as for [Root Request Id](hierarchical_request_id.md#root-request-id-generation) in hierarchical schema
+[Root Request Id](hierarchical_request_id.md#root-request-id-generation) requirements and generation considerations must be used for flat Request-Id
 
 ## Correlation Id
 Many applications and tracing systems use single correlation id to identify whole operation through all services and client applications.
@@ -22,7 +22,7 @@ If implementation needs to add `Id` property to `Correlation-Context`:
 
 ## Non-hierarchical Request-Id example
 1. A: service-a receives request 
-  * scans through its headers does not find.
+  * scans through its headers does not find Request-Id.
   * generates a new one: `abc`
   * adds extra property to CorrelationContext `Id=123`
   * logs event that operation was started along with `Request-Id: abc`, `Correlation-Context: Id=123`
@@ -95,5 +95,5 @@ As a result log records may look like:
 
 #### Remarks
 * Note, that even if service-b does not **generate** hierarchical Request-Id, it still could benefit from hierarchical structure, by assigning `Correlation-Context: Id` to the root node of Request-Id
-* Retrieving all log records then could be done by query like `Id == Guid || RequestId.startsWith(|Guid)`
+* Retrieving all log records then could be done by query like `Id == Guid || RequestId.startsWith('|Guid')`
 * If the first service to process request does not support hierarchical ids, then it sets `Correlation-Context: Id` immediately and it's propagated further and still may be used to query all logs.

@@ -42,9 +42,9 @@ Suffix MUST contain only [Base64](https://en.wikipedia.org/wiki/Base64) and "-"(
 Implementation MUST append "_" (underscore) to mark the end of generated incoming Request-Id.
 
 #### Outgoing Request
-When making request to downstream service, implementation MUST append small id to the Request-Id generated to represent this incoming request and pass a new Request-Id to downstream service.
+When making request to downstream service, implementation MUST append small id to the incoming Request-Id and pass a new Request-Id to downstream service.
 
-- Suffix MUST be unique for every outgoing HTTP request sent while processing the incoming request; number of request within the scope of this incoming request, may be a good candidate. 
+- Suffix MUST be unique for every outgoing HTTP request sent while processing the incoming request;  monotonically incremented number of outgoing request within the scope of this incoming operation, is a good candidate. 
 - Suffix MUST contain only [Base64](https://en.wikipedia.org/wiki/Base64) and "-"(hyphen) characters
 
 Implementation MUST append "." (dot) to mark the end of generated outgoing Request-Id.
@@ -61,7 +61,7 @@ To handle overflow, implementation:
 
 As a result Request-Id will look like: 
 
-  `Beginning-Of-Parent-Request-Id#LocalId`
+  `Beginning-Of-Incoming-Request-Id#LocalId`
 
 Thus, to the extent possible, Request-Id will keep valid part of hierarchical Id.
 

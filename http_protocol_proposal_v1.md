@@ -36,7 +36,7 @@ Implementation MUST generate unique `Request-Id` for every outgoing request and 
 It is essential that 'incoming' and 'outgoing' Request-Ids are included in the telemetry events, so implementation of this protocol MUST provide read access to Request-Id for logging systems.
 
 ### Request-Id Format
-`Request-Id` is a string up to 1024 bytes length. It contains only Base64](https://en.wikipedia.org/wiki/Base64) and "-"(hyphen), "|"(vertical bar), "."(dot), and "_"(underscore) characters.
+`Request-Id` is a string up to 1024 bytes length. It contains only [Base64](https://en.wikipedia.org/wiki/Base64) and "-" (hyphen), "|" (vertical bar), "." (dot), and "_"( underscore) characters.
 
 Vertical bar, dot and underscore are reserved characters that used to mark and delimit heirarchical Request-Id, and must not be present in the nodes. Hyphen may be used in the nodes.
 
@@ -45,6 +45,7 @@ See [Flat Request-Id](flat_request_id.md) for non-hierarchical Request-Id requir
 
 ## Correlation-Context
 Correlation-Context identifies context of logical operation (transaction, workflow). Operation may involve multiple services interaction and the context should be propagated to all services involved in operation processing. Every service involved in operation processing may add its own correlation-context properties. 
+
 Hierarchical Request-Id provides all information essential for telemetry correlation and Correlation-Context may optionally be used by applications to group telemetry based on other properties such as feature flags.
 Usage of Correlation-Context involves performance overhead related to extracting, injecting and transmitting it over HTTP, storing the value both in memory and logging system storage. Applications are encouradged to add Correlation-Context properties where it is stongly necessary for telemetry purposes.
 
@@ -59,10 +60,11 @@ Implementation MUST provide access to `Correlation-Context` for logging systems 
 
 `Correlation-Context: key1=value1, key2=value2`
 
-Neither keys nor values MUST NOT contain "="(equals) or "," (comma) characters. See [RFC5987](https://tools.ietf.org/html/rfc5987) for HTTP header character set and encoding.
+Neither keys nor values MUST NOT contain "="(equals) or "," (comma) characters. 
 
 Keys may be used by logging system as a column names. However it may be useful to have duplicated keys in the Correlation-Context: e.g. when services enable different feature flags and put them into Correlation-Context.
-Implementation MUST support receiving duplicated keys in Correlation-Context. Implementation MUST NOT suppress values with duplicated keys; depending on data structure used for Correlation-Context, implementation MAY either concatenate values with duplicated keys into one value or MAY allow duplicated keys, thus let logging system decide how to represent them.
+
+Implementation MUST support receiving duplicated keys in Correlation-Context: it MUST NOT suppress values with duplicated keys. Depending on data structure used for Correlation-Context, implementation MAY either concatenate values with duplicated keys into one value or MAY allow duplicated keys, thus let logging system decide how to represent them.
 
 # HTTP Guidelines and Limitations
 - [HTTP 1.1 RFC2616](https://tools.ietf.org/html/rfc2616)
