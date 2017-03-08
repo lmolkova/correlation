@@ -65,7 +65,7 @@ Neither keys nor values MUST NOT contain "="(equals) or "," (comma) characters.
 
 Keys may be used by logging system as a column names. However it may be useful to have duplicated keys in the Correlation-Context: e.g. when services enable different feature flags and put them into Correlation-Context.
 
-Implementation MUST support receiving duplicated keys in Correlation-Context: data structure used for Correlation-Context MUST allow storing values with duplicated keys and MUST NOT suppress or aggregate them. Logging storage systems in general do not support duplicates, thus application (or tracing system) code that writes logs to the particular logging storage MUST deal with them in the way that it is suitable for the logging storage.
+Implementation MUST support receiving duplicated keys in Correlation-Context: data structure used for Correlation-Context MUST allow storing values with duplicated keys and MUST NOT suppress or aggregate them. Logging storage systems in general do not support duplicates, thus application (or tracing system) code that writes logs to the particular logging storage MUST deal with them in the way that it is suitable for the logging storage and query tools.
 
 # HTTP Guidelines and Limitations
 - [HTTP 1.1 RFC2616](https://tools.ietf.org/html/rfc2616)
