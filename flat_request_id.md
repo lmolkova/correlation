@@ -31,7 +31,7 @@ If implementation needs to add `Id` property to `Correlation-Context`:
   * logs that outgoing request is about to be sent with all the available context: `Request-Id: def`, `Correlation-Context: Id=123`
   * sends request to service-b
 3. B: service-b receives request
-  * scans through its headers and finds `equest-Id: ghi`, `Correlation-Context: Id=123`
+  * scans through its headers and finds `Request-Id: ghi`, `Correlation-Context: Id=123`
   * logs event that operation was started along with all available context: `Request-Id: ghi`, `Correlation-Context: Id=123`
   * processes request and responds to service-a
 4. A: service-a receives response from service-b
