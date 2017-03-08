@@ -48,7 +48,7 @@ See [Flat Request-Id](flat_request_id.md) for non-hierarchical Request-Id requir
 Correlation-Context identifies context of logical operation (transaction, workflow). Operation may involve multiple services interaction and the context should be propagated to all services involved in operation processing. Every service involved in operation processing may add its own correlation-context properties. 
 
 Hierarchical Request-Id provides all information essential for telemetry correlation and Correlation-Context may optionally be used by applications to group telemetry based on other properties such as feature flags.
-Usage of Correlation-Context involves performance overhead related to extracting, injecting and transmitting it over HTTP, storing the value both in memory and logging system storage. Applications are encouradged to add Correlation-Context properties where it is stongly necessary for telemetry purposes.
+Usage of Correlation-Context involves performance overhead related to extracting, injecting and transmitting it over HTTP, storing the value both in memory and logging system storage. Applications are encouradged to use Correlation-Context with care and add properties when it is stongly necessary for telemetry purposes.
 
 `Correlation-Context` is optional, which means that it may or may not be provided by upstream service.
 
@@ -65,7 +65,7 @@ Neither keys nor values MUST NOT contain "="(equals) or "," (comma) characters.
 
 Keys may be used by logging system as a column names. However it may be useful to have duplicated keys in the Correlation-Context: e.g. when services enable different feature flags and put them into Correlation-Context.
 
-Implementation MUST support receiving duplicated keys in Correlation-Context: it MUST NOT suppress values with duplicated keys. Depending on data structure used for Correlation-Context, implementation MAY either concatenate values with duplicated keys into one value or MAY allow duplicated keys, thus let logging system decide how to represent them.
+Implementation MUST support receiving duplicated keys in Correlation-Context: data structure used for Correlation-Context MUST allow storing values with duplicated keys. It aligns with Opentracing implementations and requires logging systems to deal with it.
 
 # HTTP Guidelines and Limitations
 - [HTTP 1.1 RFC2616](https://tools.ietf.org/html/rfc2616)
