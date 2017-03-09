@@ -55,13 +55,13 @@ It may be useful to split incoming request processing to multiple logical sub-op
 Extending `Request-Id` may cause it to exceed length limit.
 To handle overflow, implementation: 
 * MUST generate suffix that keeps possibility of collision with any of the previous or future Request-Id within the same operation neglectable.
-* MUST prepend suffix with "#" symbol to indicate that overflow happened.
-* MUST trim end of existing Request-Id to make a room for generated LocalId. Implementation MUST trim whole nodes (separated with ".", "_" or "#") without preceeding delimiter, i.e. it's invalid to trim only part of node. 
+* MUST append "#" symbol to suffix to indicate that overflow happened.
+* MUST trim end of existing Request-Id to make a room for generated LocalId. Implementation MUST trim whole nodes (separated with ".", "_") without preceeding delimiter, i.e. it's invalid to trim only part of node. 
 * Suffix MUST contain only [Base64](https://en.wikipedia.org/wiki/Base64) and "-"(hyphen) characters
 
 As a result Request-Id will look like: 
 
-  `Beginning-Of-Incoming-Request-Id#LocalId`
+  `Beginning-Of-Incoming-Request-Id.LocalId#`
 
 Thus, to the extent possible, Request-Id will keep valid part of hierarchical Id.
 
