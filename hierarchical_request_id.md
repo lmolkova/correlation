@@ -28,7 +28,7 @@ Root Request-Id MUST contain only [Base64](https://en.wikipedia.org/wiki/Base64)
 
 Same considerations are applied to client applications making HTTP requests and generating root Request-Id.
 
-Note that in addition to random part, it may be useful to include some meaningful information such as host name, device or process id, etc. Implementation is free to do it, keeping root id relatively short.
+Note that in addition to unique part, it may be useful to include some meaningful information such as host name, device or process id, etc. Implementation is free to do it, keeping root id relatively short.
 
 #### Incoming Request
 When Request-Id is provided by upstream service, there is no guarantee that it is unique within the entire system. 

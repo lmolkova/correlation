@@ -12,7 +12,7 @@ These scenarios require every request to carry additional context and services t
 Tracing an operation involves an overhead on application performance and should always be considered as optional, so application may not trace anything, trace only particular operations or some percent of all operations. 
 Tracing should be consistent: operation should be either fully traced, or not traced at all.
 
-This document provides guidance on the context needed for telemetry correlation and describes its format in HTTP communication. The context is not specific to HTTP protocol, it represents set of idenitiers that are needed or helpful for end-to-end tracing. Application widely use distributed queues for asyncronous processing so operation may start (or continue) from a queue message; applications should propagate the context through the queues and restore (create) it when they start processing received task.
+This document provides guidance on the context needed for telemetry correlation and describes its format in HTTP communication. The context is not specific to HTTP protocol, it represents set of identifiers that are needed or helpful for end-to-end tracing. Application widely use distributed queues for asynchronous processing so operation may start (or continue) from a queue message; applications should propagate the context through the queues and restore (create) it when they start processing received task.
 
 # HTTP Protocol proposal
 | Header name           |  Format    | Description |
@@ -39,22 +39,23 @@ It is essential that 'incoming' and 'outgoing' Request-Ids are included in the t
 ### Request-Id Format
 `Request-Id` is a string up to 1024 bytes length. It contains only [Base64](https://en.wikipedia.org/wiki/Base64) and "-" (hyphen), "|" (vertical bar), "." (dot), and "_"( underscore) characters.
 
-Vertical bar, dot and underscore are reserved characters that used to mark and delimit heirarchical Request-Id, and must not be present in the nodes. Hyphen may be used in the nodes.
+Vertical bar, dot and underscore are reserved characters that used to mark and delimit hierarchical Request-Id, and must not be present in the nodes. Hyphen may be used in the nodes.
 
 Implementations SHOULD support hierarchical structure for the Request-Id, described in [Hierarchical Request-Id document](hierarchical_request_id.md).
 See [Flat Request-Id](flat_request_id.md) for non-hierarchical Request-Id requirements.
 
 ## Correlation-Context
-Correlation-Context identifies context of logical operation (transaction, workflow). Operation may involve multiple services interaction and the context should be propagated to all services involved in operation processing. Every service involved in operation processing may add its own correlation-context properties. 
+Root service can add state (key value pairs) that will automatically propagate to all other services including intermediary services (that support this protocol). A typical scenarios are sampling or A/B testing (feature flags) so that the root service has a way to pass this kind of information down to all services (including intermediary). All services other than the root SHOULD consider Correlation-Context as read-only.
 
-Hierarchical Request-Id provides all information essential for telemetry correlation and Correlation-Context may optionally be used by applications to group telemetry based on other properties such as feature flags.
-Usage of Correlation-Context involves performance overhead related to extracting, injecting and transmitting it over HTTP, storing the value both in memory and logging system storage. Applications are encouradged to use Correlation-Context with care and add properties when it is stongly necessary for telemetry purposes.
+We anticipate that there will be common well-known Correlation-Context keys. If you wish to use this for you own custom (not well-known) context key, prefix it with @.
+
+It is important to keep the size of any property because they get serialized in HTTP headers and headers have significant size restrictions. The Correlation-Context MUST NOT be used as generic data passing mechanism (between services or within service).
 
 `Correlation-Context` is optional, which means that it may or may not be provided by upstream service.
 
 If `Correlation-Context` is provided by upstream service, implementation MUST propagate it further to downstream services.
 
-Implementation MUST provide access to `Correlation-Context` for logging systems and MUST support adding properties to Correlation-Context.
+Implementation MUST provide read access to `Correlation-Context` for logging systems and MUST support adding properties to Correlation-Context.
 
 ### Correlation-Context Format
 `Correlation-Context` is represented as comma separated list of key value pairs, where each pair is represented in key=value format:
@@ -63,14 +64,14 @@ Implementation MUST provide access to `Correlation-Context` for logging systems 
 
 Neither keys nor values MUST NOT contain "="(equals) or "," (comma) characters. 
 
-Keys may be used by logging system as a column names. However it may be useful to have duplicated keys in the Correlation-Context: e.g. when services enable different feature flags and put them into Correlation-Context.
+Overall Correlation-Context length MUST NOT exceed 1024 bytes; maximum key length is 32 bytes; maximum value length is 42 bytes.
 
-Implementation MUST support receiving duplicated keys in Correlation-Context: data structure used for Correlation-Context MUST allow storing values with duplicated keys and MUST NOT suppress or aggregate them. Logging storage systems in general do not support duplicates, thus application (or tracing system) code that writes logs to the particular logging storage MUST deal with them in the way that it is suitable for the logging storage and query tools.
+Note that uniqueness of the key within the Correlation-Context is not guaranteed. Context received from upstream service is read-only and implementation MUST not remove or aggregate duplicated keys. 
 
 # HTTP Guidelines and Limitations
 - [HTTP 1.1 RFC2616](https://tools.ietf.org/html/rfc2616)
 - [HTTP Header encoding RFC5987](https://tools.ietf.org/html/rfc5987)
-- Practically HTTP header size is limited to several kilobytes (depending on a web server)
+- De-facto overall HTTP headers size is limited to several kilobytes (depending on a web server)
 
 # Industry standards
 - [Google Dapper tracing system](http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/36356.pdf)
