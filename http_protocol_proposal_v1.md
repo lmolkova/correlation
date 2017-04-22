@@ -64,7 +64,7 @@ Implementation MUST provide read access to `Correlation-Context` for logging sys
 
 Neither keys nor values MUST NOT contain "="(equals) or "," (comma) characters. 
 
-Overall Correlation-Context length MUST NOT exceed 1024 bytes; maximum key length is 32 bytes; maximum value length is 42 bytes.
+Overall Correlation-Context length MUST NOT exceed 1024 bytes, key and value length should stay well under the combined limit of 1024 bytes.
 
 Note that uniqueness of the key within the Correlation-Context is not guaranteed. Context received from upstream service is read-only and implementation MUST not remove or aggregate duplicated keys. 
 
