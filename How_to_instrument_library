@@ -1,0 +1,124 @@
+# How to instrument library
+
+Applications use frameworks and SDKs to do common tasks: handle incoming HTTP requests or take work items from the queue, make outgoing HTTP requests, execute SQL queries, they use caches and various kinds of storages or run computational tasks.
+So developers focus on the business logic and do not have to implement common well-known primitives and algorithms. 
+When it comes to the monitoring, dev-ops are usually interested in all components involved in the processing. E.g. in case of web service, pure request processing time is important but does not give information of where this time is spent or how it could be improved.
+A typical approach is to measure low-level operations such as HTTP requests, SQL queries execution times, storage access time, etc, so all level operation should be surrounded with code that measures latency, result and writes log/event.
+However, it takes a lot of developers resources to implement tracing with every low-level operation. It is easy to miss it and extremely hard to trace everything in a legacy application with many lines of code.
+Another common problem is being able to correlate all telemetry for high-level operation.
+
+This document describes an approach to make library easily traceable and augment telemetry will all necessary context.
+
+# Overview
+Essential parts of the instrumentation are notification mechanism and context.
+
+A tracing system should not depend on the library to be able to record it's traces, and library should not depend on the particular tracing system, So libraries should use well-known logger that allows decoupling library from the consumer logging system.
+ [DiagnosticSource](https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/DiagnosticSourceUsersGuide.md) was created for this purpose.
+
+Context is needed to correlate events for the same operation (e.g. start and stop) and augment logs, and [Activity class](https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/ActivityUserGuide.md) was created exactly for it.
+
+The guides I mentioned above provide almost all necessary information, make sure you are familiar with them before reading this document as it only gives a summary and digs into some details of the instrumentation.
+
+# What should be instrumented
+Developers (and dev-ops) are interested to know what their application spends time on. Operations that happen externally, or that could be configured in a suboptimal way, give the most interest: HTTP requests, SQL and no-SQL database requests, Redis cache requests, in-memory cache request hit/miss results. Even though latency and result may be traced by user code, in presence of instrumentation that lights-up in presence of tracing system, developers may focus on the business logic rather than tracing every external call.
+
+Library owners should identify operations that the library performs. 
+
+# Instrumenting operation
+Library should define [globally unique name(s)](https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/DiagnosticSourceUsersGuide.md#naming-conventions) for the `DiagnosticListener`  and names for the operations/events. Operation name should be coarse and describe the operation type rather than the context of the particular operation; listener may use this name to filter classes of the events. 
+
+It is important to keep instrumentation performance cost low, so the library should first check if anyone listens to its `DiagnosticListener` with `IsEnabled()` method and only if it returns true, proceed with instrumentation.
+
+```C#
+    public Task MyOperationAsync(DiagnosticListener listener, MyRequest request)
+    {
+       if (listener.IsEnabled())
+       {
+          return MyOperationInstrumentedAsync(DiagnosticListener listener, MyRequest request);
+       }
+       else
+       {
+          return MyOperationInternalAsync(MyRequest request);
+       }
+    }
+```
+
+So we know that there is a consumer, but it may only be interested in a subset of the events: Exceptions provide the most interest. Operation Start event may be not that interesting as Stop event.
+Moreover, a consumer may want to sample operations based on some operation properties: e.g. Activity.Id or request properties to save some resources or keep log rate under the limits.
+
+We use `IsEnabled(name, object, object)` overloads to check that consumer is interested in the event. We provide all context of the operation that is safe and makes sense to provide.
+
+```C#
+    public Task MyOperationInstrumentedAsync(DiagnosticListener listener, MyRequest request)
+    {
+       Activity activity = null;
+       // At this point we know, that there is a consumer, but does it want this kind of operation to be instrumented?
+       if (listener.IsEnabled(OperationName)) 
+       {
+           // now we can afford to create Activity
+           Activity activity = new Activity(listener);
+
+           // if this request is external, it may contain some Ids that we can use as parent to the Activity or baggage
+           activity.SetParentId(Request.headers["Request-id"]);
+           foreach (var pair in Request.Headers["Correlation-Context"])
+               activity.AddBaggage(pair.Key, pair.Value);
+
+           // We leave it up to the consumer to sample this operation and give as much context as possible to help with decision: Activity and request
+           // Note that we do not use anonymous object syntax in IsEnabled as we want it to be as fast as possible
+           if (listener.IsEnabled(OperationName, activity, request))               
+           {
+                // And we assume that Start event may not be that interesting, but we start Activity anyway.
+                if (listener.IsEnabled(OperationName + ".Start"))
+                    listener.StartActivity(activity, new { Request = request });
+                else
+                    activity.Start();
+           }
+       }
+       
+       Task responseTask = null;
+       try
+       {
+            responseTask = MyOperationInternalAsync(MyRequest request);
+            await responseTask;
+       }
+       catch(TaskCancelledException){ throw }
+       catch(Exception e)
+       {
+           if (listener.IsEnabled(OperationName + ".Exception"))
+           {
+               // To correlate instrumented request and Exception, consumer uses Activity.Current
+               // However if the request was not instrumented or consumer want to log some request properties with exception, we also provide Request in the payload
+               listener.Write(OperationName + ".Exception", new {Exception = ex, Request = request})
+           }
+           throw;
+       }
+       finally
+       {
+           if (activity != null)
+           {   
+                // note that if operation was instrumented, we always send Stop event, without calling IsEnabled
+                // in the payload we again provide as much context as we have
+                listener.StopActivity(activity, new {Request = request, Response = responseTask.Status == TaskStatus.RanToCompletion ? responseTask.Result : null, RequestStatus = responseTask.Status})
+           }
+       }
+    }
+```
+
+Note that nothing prevents a consumer from modifying event payloads or IsEnabled arguments.
+
+Another important aspect is that consumers must ensure their event processing code does not throw. A producer should not handle consumer's exceptions.
+
+# Activity.Current and ExecutionContext
+TODO
+
+# Protocol
+Some type of operations like HTTP requests leave the process and continue on the other service, so we want to transmit Activity.Id and Baggage over the wire to correlate telemetry from all services that process requests. 
+If your library transfers request over some protocol, it should consider passing Activity.Id together with the request. E.g. for SQL databases, it could be useful to correlate internal database logs with application logs, even though request never leaves database after a query is executed.
+
+Some protocols define similar concepts as correlation Id/request Id and in some cases have a strict limitation on the format. In this case,  library may use and appropriate format for internal protocol and include internal Id into the payload, so tracing system or application could log this Id along with the Activity.Id.
+
+
+# Existing implementations
+- [System.Net.Http.HttpClient](https://github.com/dotnet/corefx/blob/master/src/System.Net.Http/src/System/Net/Http/DiagnosticsHandler.cs) instrumentation for outgoing HTTP requests
+- [Microsoft.AspNetCore.Hosting](https://github.com/aspnet/Hosting/blob/dev/src/Microsoft.AspNetCore.Hosting/Internal/HostingApplicationDiagnostics.cs) for incoming HTTP requests
+- [Http Correlation Protocol](https://github.com/lmolkova/corefx/blob/bab520c06b77b951ff0236a6414447ba2fc72962/src/System.Diagnostics.DiagnosticSource/src/HttpCorrelationProtocol.md)
